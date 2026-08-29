@@ -15,4 +15,6 @@
 - Dev box is Windows; Go is NOT installed locally — build and test via Docker or rely on CI.
 - `gh` authenticated as KisaesDevLab; Docker 29.x available.
 
+**BK-0 exit criterion verified:** repo at https://github.com/KisaesDevLab/Vibe-Backup (public), tag v0.1.0; ci + both release runs green; `ghcr.io/kisaesdevlab/vibe-backup:latest` published multi-arch (amd64 + arm64), local image 8.2 MB.
+
 **Next:** BK-1 — restic static binary + CA certs into the runtime image, image-size gate (< 60 MB) in CI.

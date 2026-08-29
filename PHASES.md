@@ -5,7 +5,7 @@ Build order (plan §8): BK-0 → 1 → 2 → 2a → 3/3a/4 (‖ 2c in Vibe-Conne
 
 | Phase | Deliverable | Exit criteria | Status |
 |-------|-------------|---------------|--------|
-| BK-0 | Repo scaffold, CLAUDE.md, manifest entry, CI, license alignment | Builds and publishes to GHCR | **In progress** |
+| BK-0 | Repo scaffold, CLAUDE.md, manifest entry, CI, license alignment | Builds and publishes to GHCR | **Done** 2026-08-29 (v0.1.0) |
 | BK-1 | Sidecar container: restic static binary, minimal base, non-root, no baked secrets | Image < 60 MB | Not started |
 | BK-2 | Backup orchestrator: enumeration, staging, ordering, pre/post hooks | Complete, correct stage from a live stack | Not started |
 | BK-2a | Module backup contract: schema, label discovery, hook invocation, fatal gating | Refuses to snapshot when a fatal secret is unreadable | Not started |

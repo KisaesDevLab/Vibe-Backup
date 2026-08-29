@@ -46,5 +46,21 @@ jobs:
           context: .
           target: runtime
           push: false
+          load: true
+          tags: vibe-backup:ci
           cache-from: type=gha,scope=ci
           cache-to: type=gha,scope=ci,mode=max
+
+      # BK-1 exit criterion: image < 60 MB. Enforced, not aspirational.
+      - name: Image size gate
+        run: |
+          SIZE=$(docker image inspect vibe-backup:ci --format '{{.Size}}')
+          echo "image size: $((SIZE / 1024 / 1024)) MB"
+          test "$SIZE" -lt $((60 * 1024 * 1024))
+
+      # The binaries in the image must actually run (upx or a bad
+      # cross-compile would break here, not at a customer).
+      - name: Smoke-run binaries
+        run: |
+          docker run --rm --entrypoint /usr/local/bin/restic vibe-backup:ci version
+          docker run --rm vibe-backup:ci version

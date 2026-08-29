@@ -1,17 +1,21 @@
 // Command vibe-backup is the backup and verified-restore sidecar for the
-// Vibe product family. See vibe-backup-BUILD-PLAN.md for the full design.
-//
-// BK-0 scaffold: the binary reports its version and serves the health and
-// ping endpoints the appliance manifest declares, so the published image
-// runs truthfully as a container. The orchestrator lands in BK-2.
+// Vibe product family. See vibe-backup-BUILD-PLAN.md for the design.
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/KisaesDevLab/Vibe-Backup/internal/config"
+	"github.com/KisaesDevLab/Vibe-Backup/internal/dockerapi"
+	"github.com/KisaesDevLab/Vibe-Backup/internal/engine"
+	"github.com/KisaesDevLab/Vibe-Backup/internal/resticw"
+	"github.com/KisaesDevLab/Vibe-Backup/internal/server"
+	"github.com/KisaesDevLab/Vibe-Backup/internal/state"
 )
 
 // Injected at build time via -ldflags (see Dockerfile).
@@ -21,14 +25,11 @@ var (
 	buildDate = "unknown"
 )
 
-const defaultAddr = ":4000"
-
 func main() {
 	cmd := "serve"
 	if len(os.Args) > 1 {
 		cmd = os.Args[1]
 	}
-
 	switch cmd {
 	case "version":
 		fmt.Printf("vibe-backup %s (commit %s, built %s)\n", version, gitSHA, buildDate)
@@ -36,34 +37,74 @@ func main() {
 		if err := serve(); err != nil {
 			log.Fatal(err)
 		}
+	case "backup", "drill":
+		// One-shot CLI entry points, used by vibe-restore.sh verification
+		// and by operators who prefer a shell.
+		if err := oneShot(cmd); err != nil {
+			log.Fatal(err)
+		}
 	default:
-		fmt.Fprintf(os.Stderr, "vibe-backup: unknown command %q (want: serve, version)\n", cmd)
+		fmt.Fprintf(os.Stderr, "vibe-backup: unknown command %q (want: serve, backup, drill, version)\n", cmd)
 		os.Exit(2)
 	}
 }
 
-func serve() error {
-	addr := os.Getenv("VIBE_BACKUP_ADDR")
-	if addr == "" {
-		addr = defaultAddr
+func build() (*engine.Engine, error) {
+	cfg := config.FromEnv()
+	docker, err := dockerapi.New(cfg.DockerHost)
+	if err != nil {
+		return nil, err
 	}
-
-	log.Printf("vibe-backup %s listening on %s", version, addr)
-	return http.ListenAndServe(addr, newMux())
+	store, err := state.Open(cfg.StateDir)
+	if err != nil {
+		return nil, err
+	}
+	return &engine.Engine{
+		Cfg:     cfg,
+		Docker:  docker,
+		Store:   store,
+		Restic:  resticw.NewRunner(),
+		Version: version,
+	}, nil
 }
 
-func newMux() *http.ServeMux {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/ping", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	})
-	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
-			"status":  "ok",
-			"version": version,
-			"phase":   "BK-0 scaffold — orchestrator not yet implemented",
-		})
-	})
-	return mux
+func serve() error {
+	e, err := build()
+	if err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	go e.Schedule(ctx)
+
+	s := &server.Server{Engine: e, Version: version}
+	log.Printf("vibe-backup %s starting (state: %s, docker: %s)", version, e.Cfg.StateDir, e.Cfg.DockerHost)
+	return server.Serve(ctx, e.Cfg.Addr, s.Handler())
+}
+
+func oneShot(cmd string) error {
+	e, err := build()
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+	switch cmd {
+	case "backup":
+		rec, err := e.RunBackup(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("backup ok: snapshot %s → %v\n", rec.SnapshotID, rec.Destinations)
+	case "drill":
+		rec := e.RunDrill(ctx)
+		if !rec.OK {
+			return fmt.Errorf("drill failed: %s", rec.Error)
+		}
+		fmt.Println("drill ok — restore verified")
+		for m, r := range rec.Canaries {
+			fmt.Printf("  canary %s: %s\n", m, r)
+		}
+	}
+	return nil
 }

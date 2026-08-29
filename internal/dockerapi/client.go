@@ -188,6 +188,21 @@ type ContainerDetail struct {
 		Name        string `json:"Name"`
 		Destination string `json:"Destination"`
 	} `json:"Mounts"`
+	NetworkSettings struct {
+		Networks map[string]struct {
+			NetworkID string `json:"NetworkID"`
+		} `json:"Networks"`
+	} `json:"NetworkSettings"`
+}
+
+// FirstNetwork returns one network the container is attached to, so an
+// ephemeral drill container can be placed where module containers can
+// reach it by name.
+func (d *ContainerDetail) FirstNetwork() string {
+	for name := range d.NetworkSettings.Networks {
+		return name
+	}
+	return ""
 }
 
 // EnvValue returns the value of an environment variable set on the
@@ -284,12 +299,12 @@ func (c *Client) PutArchive(ctx context.Context, id, dir string, tarStream io.Re
 // ---- lifecycle (drill) ------------------------------------------------------
 
 type CreateSpec struct {
-	Image   string            `json:"Image"`
-	Env     []string          `json:"Env,omitempty"`
-	Cmd     []string          `json:"Cmd,omitempty"`
-	Labels  map[string]string `json:"Labels,omitempty"`
-	HostCfg struct {
-		AutoRemove bool `json:"AutoRemove"`
+	Image      string            `json:"Image"`
+	Env        []string          `json:"Env,omitempty"`
+	Cmd        []string          `json:"Cmd,omitempty"`
+	Labels     map[string]string `json:"Labels,omitempty"`
+	HostConfig struct {
+		NetworkMode string `json:"NetworkMode,omitempty"`
 	} `json:"HostConfig"`
 }
 

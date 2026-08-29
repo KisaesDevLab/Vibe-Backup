@@ -7,12 +7,16 @@ FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS restic
 ARG TARGETOS
 ARG TARGETARCH
 ARG RESTIC_VERSION=v0.18.1
-RUN GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 \
+# upx: restic with all its cloud-backend SDKs is ~43 MB; compressed it fits
+# the BK-1 image budget with room to spare. Startup cost is milliseconds.
+RUN apk add --no-cache upx \
+    && GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 \
     go install -trimpath -ldflags="-s -w" \
     github.com/restic/restic/cmd/restic@$RESTIC_VERSION \
     && mkdir /out \
     && { cp "/go/bin/${TARGETOS}_${TARGETARCH}/restic" /out/restic 2>/dev/null \
-         || cp /go/bin/restic /out/restic; }
+         || cp /go/bin/restic /out/restic; } \
+    && upx -q --best --lzma /out/restic
 
 # ---- vibe-backup ------------------------------------------------------------
 # Cross-compile on the build platform — a Go build under QEMU emulation

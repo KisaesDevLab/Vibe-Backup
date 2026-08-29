@@ -39,6 +39,8 @@ type Config struct {
 	// PingURL, when set, receives a GET after every successful backup —
 	// the dead-man's-switch outbound signal (BK-11).
 	PingURL string
+	// B2API overrides the Backblaze endpoint (tests only).
+	B2API string
 }
 
 func FromEnv() Config {
@@ -59,6 +61,7 @@ func FromEnv() Config {
 		DrillDay:          1,
 		Location:          loc,
 		PingURL:           os.Getenv("VIBE_BACKUP_PING_URL"),
+		B2API:             os.Getenv("VIBE_BACKUP_B2_API"),
 	}
 	if p := os.Getenv("VIBE_BACKUP_EXTRA_PATHS"); p != "" {
 		cfg.ExtraPaths = splitNonEmpty(p, ':')

@@ -48,15 +48,22 @@ func RenderPDF(d *Data) ([]byte, error) {
 	pdf.Ln(3)
 
 	// Restore coordinates
-	pdf.SetFont("Helvetica", "B", 12)
-	pdf.CellFormat(0, 7, "Off-site storage (Backblaze B2, firm-owned account)", "", 1, "L", false, 0, "")
-	pdf.SetFont("Courier", "", 11)
-	pdf.CellFormat(0, 6, "Bucket:          "+d.B2Bucket, "", 1, "L", false, 0, "")
-	if d.B2Prefix != "" {
-		pdf.CellFormat(0, 6, "Path:            "+d.B2Prefix, "", 1, "L", false, 0, "")
+	if d.LocalOnly {
+		pdf.SetFont("Helvetica", "B", 12)
+		pdf.CellFormat(0, 7, "Off-site storage: NONE (local backup only)", "", 1, "L", false, 0, "")
+		pdf.SetFont("Helvetica", "", 10)
+		pdf.MultiCell(0, 5.5, "This firm declined cloud storage. Recovery requires the local backup drive to survive whatever damaged the appliance — fire, theft, and ransomware frequently take both. Reconsider off-site backup.", "", "L", false)
+	} else {
+		pdf.SetFont("Helvetica", "B", 12)
+		pdf.CellFormat(0, 7, "Off-site storage (Backblaze B2, firm-owned account)", "", 1, "L", false, 0, "")
+		pdf.SetFont("Courier", "", 11)
+		pdf.CellFormat(0, 6, "Bucket:          "+d.B2Bucket, "", 1, "L", false, 0, "")
+		if d.B2Prefix != "" {
+			pdf.CellFormat(0, 6, "Path:            "+d.B2Prefix, "", 1, "L", false, 0, "")
+		}
+		pdf.CellFormat(0, 6, "Restore key ID:  "+d.RestoreKeyID, "", 1, "L", false, 0, "")
+		pdf.CellFormat(0, 6, "Restore key:     "+d.RestoreKey, "", 1, "L", false, 0, "")
 	}
-	pdf.CellFormat(0, 6, "Restore key ID:  "+d.RestoreKeyID, "", 1, "L", false, 0, "")
-	pdf.CellFormat(0, 6, "Restore key:     "+d.RestoreKey, "", 1, "L", false, 0, "")
 	pdf.Ln(3)
 
 	// QR code, right-aligned block with recovery steps beside it

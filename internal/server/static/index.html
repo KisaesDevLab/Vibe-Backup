@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vibe Backup</title>
+<style>
+  :root { --ok:#1a7f37; --warn:#9a6700; --alert:#b42318; --ink:#1f2328; --mut:#57606a; --line:#d0d7de; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color:var(--ink); background:#f6f8fa; }
+  main { max-width: 760px; margin: 2.5rem auto; padding: 0 1rem; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:1.5rem; margin-bottom:1.25rem; }
+  .card.alert { border-color:var(--alert); border-width:2px; }
+  h1 { font-size:1.15rem; margin:0 0 1rem; }
+  .headline { font-size:1.25rem; font-weight:600; margin:0 0 1rem; display:flex; gap:.5rem; align-items:center; }
+  .headline.ok::before { content:"✅"; } .headline.warn::before { content:"🟡"; }
+  .headline.alert::before { content:"⚠️"; } .headline.setup::before { content:"🔧"; }
+  .headline.alert { color:var(--alert); }
+  dl { display:grid; grid-template-columns: 14rem 1fr; gap:.35rem 1rem; margin:0 0 1rem; }
+  dt { color:var(--mut); } dd { margin:0; }
+  dd.hero { font-weight:600; }
+  .warnbox { background:#fff8e5; border:1px solid #e8d8a0; border-radius:8px; padding:.6rem .9rem; margin:.5rem 0; font-size:.92rem; }
+  button { font:inherit; padding:.5rem 1rem; border-radius:8px; border:1px solid var(--line); background:#fff; cursor:pointer; }
+  button.primary { background:#0969da; border-color:#0969da; color:#fff; }
+  button.danger { background:var(--alert); border-color:var(--alert); color:#fff; }
+  button:disabled { opacity:.5; cursor:wait; }
+  .row { display:flex; gap:.6rem; flex-wrap:wrap; margin-top:.5rem; }
+  input { font:inherit; padding:.5rem .7rem; border:1px solid var(--line); border-radius:8px; width:100%; }
+  label { display:block; margin:.7rem 0 .2rem; color:var(--mut); font-size:.9rem; }
+  table { width:100%; border-collapse:collapse; font-size:.92rem; }
+  th, td { text-align:left; padding:.4rem .5rem; border-bottom:1px solid var(--line); }
+  .mut { color:var(--mut); } .mono { font-family:ui-monospace, monospace; }
+  #msg { position:fixed; bottom:1rem; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:.6rem 1.1rem; border-radius:8px; display:none; max-width:90%; }
+  details { margin-top:.8rem; } summary { cursor:pointer; color:var(--mut); }
+  .scope { font-size:.85rem; color:var(--mut); margin-top:2rem; }
+</style>
+</head>
+<body>
+<main>
+  <div id="statusCard" class="card"><p class="mut">Loading…</p></div>
+  <div id="setupCard" class="card" hidden></div>
+  <div id="restoreCard" class="card" hidden>
+    <h1>Restore</h1>
+    <div id="snapList" class="mut">Loading snapshots…</div>
+    <div id="restoreForm" hidden>
+      <label>Snapshot</label><input id="rSnap" class="mono" readonly>
+      <label>Restore a single file — path inside the snapshot (e.g. volumes/vibe-trc/uploads/file.pdf)</label>
+      <input id="rPath" placeholder="volumes/…">
+      <div class="row"><button onclick="restoreFile()">Download file</button></div>
+      <label>— or roll a whole module back. Type the module name to confirm; this replaces its current data.</label>
+      <input id="rModule" placeholder="module name (e.g. vibe-tax-research-chat)">
+      <input id="rConfirm" placeholder="type the module name again to confirm">
+      <div class="row"><button class="danger" onclick="restoreModule()">Restore module</button></div>
+    </div>
+    <div id="checklist"></div>
+  </div>
+  <p class="scope"><strong>What this protects:</strong> the Vibe appliance — its databases, documents, settings, and keys. It does <strong>not</strong> back up workstations, file servers, email, or tax software (UltraTax, Lacerte, etc.). Those need their own backup.</p>
+</main>
+<div id="msg"></div>
+<script>
+const $ = id => document.getElementById(id);
+let statusData = null;
+
+function msg(text, ms=6000) { const m=$("msg"); m.textContent=text; m.style.display="block"; setTimeout(()=>m.style.display="none", ms); }
+async function api(path, opts={}) {
+  const r = await fetch(path, {headers:{"Content-Type":"application/json"}, ...opts});
+  const ct = r.headers.get("Content-Type")||"";
+  if (!r.ok) {
+    let e = "request failed";
+    if (ct.includes("json")) { e = (await r.json()).error || e; }
+    throw new Error(e);
+  }
+  return ct.includes("json") ? r.json() : r;
+}
+
+async function refresh() {
+  try {
+    statusData = await api("/api/status");
+    renderStatus(statusData);
+  } catch (e) { $("statusCard").innerHTML = `<p class="headline alert">Cannot reach the backup service.</p><p class="mut">${e.message}</p>`; }
+}
+
+function esc(s){ const d=document.createElement("div"); d.textContent=s??""; return d.innerHTML; }
+
+function renderStatus(d) {
+  const h = d.health;
+  const card = $("statusCard");
+  card.className = "card" + (h.level==="alert" ? " alert" : "");
+  if (h.level === "setup") { card.hidden = true; renderSetup(d); return; }
+  $("setupCard").hidden = true;
+  let rows = `
+    <dt>Last verified restore</dt><dd class="hero">${esc(h.lastVerifiedRestore)}</dd>
+    <dt>Last backup</dt><dd>${esc(h.lastBackup||"—")}</dd>
+    <dt>Off-site copy</dt><dd>${esc(h.offsiteCopy)}</dd>
+    <dt>Local copy</dt><dd>${esc(h.localCopy)}</dd>
+    <dt>Recovery Kit</dt><dd>${esc(h.recoveryKit)}</dd>
+    <dt>B2 account</dt><dd>${esc(h.b2Account)}</dd>`;
+  let warns = (h.warnings||[]).map(w=>`<div class="warnbox">${esc(w)}</div>`).join("");
+  let kitBtn = d.gate==="kit-issued" ? `<button class="primary" onclick="showConfirm()">Print &amp; confirm new Recovery Kit</button>` : "";
+  card.innerHTML = `
+    <p class="headline ${h.level}">${esc(h.headline)}</p>
+    <dl>${rows}</dl>${warns}
+    <div class="row">
+      <button onclick="showRestore()">Restore a file or module</button>
+      <button id="drillBtn" onclick="runDrill()">Run a drill now</button>
+      <button id="backupBtn" onclick="runBackup()">Back up now</button>
+      ${kitBtn}
+    </div>
+    <div id="confirmBox"></div>
+    <details><summary>Recent activity</summary>${renderHistory(d)}</details>`;
+}
+
+function renderHistory(d) {
+  const b = (d.backups||[]).map(r=>`<tr><td>${new Date(r.at).toLocaleString()}</td><td>backup</td><td>${r.ok?"ok":"FAILED"}</td><td class="mut">${esc(r.error||r.destinations?.join(", ")||"")}</td></tr>`).join("");
+  const dr = (d.drills||[]).map(r=>`<tr><td>${new Date(r.at).toLocaleString()}</td><td>drill</td><td>${r.ok?"ok":"FAILED"}</td><td class="mut">${esc(r.error||Object.entries(r.canaries||{}).map(([k,v])=>k+": "+v).join("; "))}</td></tr>`).join("");
+  return `<table><tr><th>When</th><th>What</th><th>Result</th><th></th></tr>${dr}${b}</table>`;
+}
+
+function renderSetup(d) {
+  const c = $("setupCard"); c.hidden = false;
+  if (d.gate === "kit-issued") { c.innerHTML = confirmHTML(); return; }
+  c.innerHTML = `
+    <h1>Set up backups</h1>
+    <p>Three fields. Everything else — bucket, immutability, retention, schedule — is configured for you.</p>
+    <label>Firm name (appears on the Recovery Kit)</label><input id="sFirm">
+    <label>Backblaze master application key ID <span class="mut">(from your firm's Backblaze account — used once to set up, never stored)</span></label><input id="sKeyId" class="mono">
+    <label>Backblaze master application key</label><input id="sKey" type="password" class="mono">
+    <p class="mut">Don't have a Backblaze account yet? Create one at backblaze.com (choose B2 Cloud Storage), add a payment card, and generate the master application key under App Keys. Leave both key fields empty for local-only backup — not recommended.</p>
+    <div class="row"><button class="primary" id="setupBtn" onclick="doSetup()">Create backup system</button></div>`;
+}
+
+function confirmHTML() {
+  return `
+    <h1>Print your Recovery Kit</h1>
+    <p><strong>Backups will not start</strong> until you download the kit, print it, store it in a safe place, and type the six-word activation code printed on it.</p>
+    <div class="row"><a href="/api/kit.pdf"><button class="primary">Download Recovery Kit (PDF)</button></a></div>
+    <label>The six words printed on the kit</label><input id="cCode" placeholder="e.g. maple harbor stone lantern river fox">
+    <label>Custodian 1 (who can access the stored kit)</label><input id="cCust1">
+    <label>Custodian 2</label><input id="cCust2">
+    <div class="row"><button class="primary" id="confirmBtn" onclick="doConfirm()">Activate backups</button></div>`;
+}
+
+function showConfirm(){ $("confirmBox").innerHTML = confirmHTML(); }
+
+async function doSetup() {
+  const b = $("setupBtn"); b.disabled = true;
+  try {
+    await api("/api/setup", {method:"POST", body: JSON.stringify({firmName:$("sFirm").value, b2KeyId:$("sKeyId").value, b2Key:$("sKey").value})});
+    msg("Storage provisioned. Now print the Recovery Kit."); refresh();
+  } catch(e){ msg("Setup failed: "+e.message, 10000); } finally { b.disabled = false; }
+}
+
+async function doConfirm() {
+  const b = $("confirmBtn"); b.disabled = true;
+  try {
+    await api("/api/kit/confirm", {method:"POST", body: JSON.stringify({code:$("cCode").value, custodians:[$("cCust1")?.value, $("cCust2")?.value]})});
+    msg("Backups are active."); refresh();
+  } catch(e){ msg(e.message, 10000); } finally { b.disabled = false; }
+}
+
+async function runBackup() {
+  const b = $("backupBtn"); b.disabled = true; b.textContent = "Backing up…";
+  try { const r = await api("/api/backup/run", {method:"POST", body:"{}"}); msg("Backup complete → " + (r.destinations||[]).join(", ")); }
+  catch(e){ msg("Backup failed: "+e.message, 12000); }
+  finally { refresh(); }
+}
+
+async function runDrill() {
+  const b = $("drillBtn"); b.disabled = true; b.textContent = "Running drill…";
+  try { const r = await api("/api/drill/run", {method:"POST", body:"{}"}); msg("Drill passed — restore verified."); }
+  catch(e){ msg("DRILL FAILED: "+e.message, 15000); }
+  finally { refresh(); }
+}
+
+async function showRestore() {
+  const c = $("restoreCard"); c.hidden = false; c.scrollIntoView({behavior:"smooth"});
+  try {
+    const snaps = await api("/api/snapshots");
+    if (!snaps.length) { $("snapList").textContent = "No snapshots yet."; return; }
+    $("snapList").innerHTML = "<table><tr><th>Date</th><th>Snapshot</th><th></th></tr>" + snaps.map(s =>
+      `<tr><td>${new Date(s.time).toLocaleString()}</td><td class="mono">${s.short_id}</td>
+       <td><button onclick="pick('${s.short_id}')">Choose</button></td></tr>`).join("") + "</table>";
+  } catch(e){ $("snapList").textContent = e.message; }
+}
+
+function pick(id){ $("restoreForm").hidden = false; $("rSnap").value = id; }
+
+function restoreFile() {
+  const s = $("rSnap").value, p = $("rPath").value;
+  if (!s || !p) { msg("Choose a snapshot and enter a path."); return; }
+  window.location = `/api/restore/file?snapshot=${encodeURIComponent(s)}&path=${encodeURIComponent(p)}`;
+}
+
+async function restoreModule() {
+  try {
+    const r = await api("/api/restore/module", {method:"POST", body: JSON.stringify({snapshot:$("rSnap").value, module:$("rModule").value, confirm:$("rConfirm").value})});
+    let items = (r.checklist||[]).map(i=>`<li><strong>${esc(i.module)}</strong>: ${esc(i.action)}</li>`).join("");
+    let note = r.secretsNote ? `<div class="warnbox">${esc(r.secretsNote)}</div>` : "";
+    $("checklist").innerHTML = `<h1>Restored. Before you're done:</h1>${note}<ul>${items}</ul>`;
+    msg("Module restored — work the checklist.");
+  } catch(e){ msg("Restore failed: "+e.message, 12000); }
+}
+
+refresh();
+setInterval(refresh, 30000);
+</script>
+</body>
+</html>

@@ -69,6 +69,10 @@ type Data struct {
 	RestoreKeyID string
 	RestoreKey   string
 	Verification string
+	// LocalOnly marks a firm that declined B2 (plan §10.3): the kit still
+	// carries the passphrase, but recovery depends on the local repository
+	// surviving whatever killed the appliance.
+	LocalOnly bool
 }
 
 // QRPayload is the machine-readable equivalent of the kit, encoded in the
@@ -90,12 +94,17 @@ func (d *Data) QRPayload() string {
 // Validate refuses to render an incomplete kit — a kit missing any field
 // is a kit that fails during a disaster.
 func (d *Data) Validate() error {
-	var missing []string
-	for k, v := range map[string]string{
+	required := map[string]string{
 		"firm name": d.FirmName, "passphrase": d.Passphrase,
-		"bucket": d.B2Bucket, "restore key id": d.RestoreKeyID,
-		"restore key": d.RestoreKey, "verification code": d.Verification,
-	} {
+		"verification code": d.Verification,
+	}
+	if !d.LocalOnly {
+		required["bucket"] = d.B2Bucket
+		required["restore key id"] = d.RestoreKeyID
+		required["restore key"] = d.RestoreKey
+	}
+	var missing []string
+	for k, v := range required {
 		if strings.TrimSpace(v) == "" {
 			missing = append(missing, k)
 		}

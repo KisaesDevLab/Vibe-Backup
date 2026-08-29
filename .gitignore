@@ -1,0 +1,21 @@
+# Build output
+/vibe-backup
+/vibe-backup.exe
+/bin/
+/dist/
+/out/
+
+# Go
+*.test
+coverage.out
+
+# Secrets — never committed, even samples with real values
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

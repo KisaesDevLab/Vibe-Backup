@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "slug": "vibe-backup",
+  "displayName": "Vibe Backup",
+  "description": "Bundled backup and verified-restore sidecar: restic to a firm-owned Backblaze B2 bucket with Object Lock, monthly restore drills with per-module decrypt canaries, printed Recovery Kit, and bare-metal recovery.",
+  "userFacing": false,
+  "image": {
+    "server": "ghcr.io/kisaesdevlab/vibe-backup",
+    "defaultTag": "latest"
+  },
+  "ports": { "server": 4000 },
+  "subdomains": [],
+  "depends": [],
+  "websocket": false,
+  "env": {
+    "required": [],
+    "optional": [
+      { "name": "VIBE_BACKUP_ADDR", "default": ":4000" }
+    ]
+  },
+  "health": "/api/health",
+  "ping": "/api/ping",
+  "note": "BK-0 scaffold. userFacing flips to true when the self-contained UI ships (BK-10) and the appliance console proxies it (BK-10a). Discovery of what to back up is by container label (vibe.backup.contract), not by this manifest — see build plan D-9 and section 4.2. Requires a Docker socket proxy restricted to list/inspect; wiring lands with BK-10a in Vibe-Appliance."
+}

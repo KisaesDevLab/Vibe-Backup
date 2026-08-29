@@ -1,0 +1,12 @@
+.git
+.github
+.appliance
+*.md
+LICENSE
+vibe-backup
+vibe-backup.exe
+bin/
+dist/
+out/
+.env
+.env.*

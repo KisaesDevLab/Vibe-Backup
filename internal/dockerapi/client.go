@@ -25,7 +25,9 @@ import (
 	"time"
 )
 
-const apiVersion = "v1.43"
+// Engine API 1.44 ships with Docker 25 (Jan 2024) and is the oldest
+// version current daemons still accept as a client floor.
+const apiVersion = "v1.44"
 
 type Client struct {
 	http *http.Client

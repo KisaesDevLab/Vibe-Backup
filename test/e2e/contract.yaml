@@ -1,0 +1,15 @@
+module: vibe-fake
+schema: 1
+databases: [fake_db]
+volumes: [vb-e2e-data]
+secrets:
+  - name: FAKE_KEK
+    source: env
+    criticality: fatal
+    note: "e2e KEK: sentinel row must equal enc:$FAKE_KEK after restore"
+external_state: []
+hooks:
+  pre_backup: /hooks/pre.sh
+  post_restore: /hooks/post.sh
+  canary: /hooks/canary.sh
+reauth_required_after_restore: ["Reconnect fake external service"]

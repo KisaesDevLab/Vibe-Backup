@@ -1,0 +1,50 @@
+name: ci
+
+# Build + test on every push and PR. Publishing is release.yml's job;
+# this workflow never touches the registry.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  test:
+    name: vet + test + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test ./...
+
+      - name: go build
+        run: go build ./...
+
+  docker:
+    name: docker build (runtime stage)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Single-platform smoke build so a broken Dockerfile fails the PR,
+      # not the release. Multi-arch is exercised only in release.yml.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runtime
+          push: false
+          cache-from: type=gha,scope=ci
+          cache-to: type=gha,scope=ci,mode=max

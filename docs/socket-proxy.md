@@ -22,6 +22,11 @@ With tecnativa's proxy that means: `CONTAINERS=1`, `EXEC=1`,
 access. Everything else stays denied (networks, swarm, system, build,
 raw events).
 
+> **Status: accepted 2026-08-29** (Q&A decision, QUESTIONS.md). This
+> allowlist supersedes the plan's "CONTAINERS:1 list/inspect-only"
+> shorthand. An exec-free contract redesign remains a v1.1 option if
+> Docker ever ships fine-grained exec authz.
+
 ## Honest threat assessment (plan §4.2 deviation, recorded)
 
 The build plan's shorthand — "restricted to CONTAINERS:1 (list/inspect

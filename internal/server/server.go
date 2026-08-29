@@ -76,14 +76,22 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 	st := s.Engine.Store.View()
 	hs := health.Evaluate(st, s.Engine.Cfg.LocalRepoDir != "", time.Now())
-	jsonOut(w, 200, map[string]any{
+	out := map[string]any{
 		"health":     hs,
 		"firmName":   st.FirmName,
 		"gate":       st.Gate,
 		"custodians": st.Custodians,
 		"backups":    tail(st.LastBackups, 10),
 		"drills":     tailDrills(st.LastDrills, 6),
-	})
+	}
+	if st.FilerBucket != "" {
+		out["filer"] = map[string]any{
+			"bucket":      st.FilerBucket,
+			"keyId":       st.FilerKeyID,
+			"protectedAt": st.FilerProtectedAt,
+		}
+	}
+	jsonOut(w, 200, out)
 }
 
 func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
@@ -92,17 +100,19 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		ApplianceID string `json:"applianceId"`
 		B2KeyID     string `json:"b2KeyId"`
 		B2Key       string `json:"b2Key"`
+		WithFiler   bool   `json:"provisionFilerBucket"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		jsonErr(w, 400, err)
 		return
 	}
 	err := s.Engine.Setup(r.Context(), engine.SetupInput{
-		FirmName:      in.FirmName,
-		ApplianceID:   in.ApplianceID,
-		B2MasterKeyID: in.B2KeyID,
-		B2MasterKey:   in.B2Key,
-		B2APIBase:     s.Engine.Cfg.B2API,
+		FirmName:        in.FirmName,
+		ApplianceID:     in.ApplianceID,
+		B2MasterKeyID:   in.B2KeyID,
+		B2MasterKey:     in.B2Key,
+		WithFilerBucket: in.WithFiler,
+		B2APIBase:       s.Engine.Cfg.B2API,
 	})
 	if err != nil {
 		jsonErr(w, 400, err)

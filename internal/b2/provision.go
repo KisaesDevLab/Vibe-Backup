@@ -21,7 +21,12 @@ type Provisioned struct {
 var slugRe = regexp.MustCompile(`[^a-z0-9-]+`)
 
 // BucketName derives a valid, globally-unique-enough B2 bucket name.
-func BucketName(firmName string) string {
+func BucketName(firmName string) string { return bucketName("vibe-backup", firmName) }
+
+// FilerBucketName names the firm's document bucket (BK-5a).
+func FilerBucketName(firmName string) string { return bucketName("vibe-filer", firmName) }
+
+func bucketName(prefix, firmName string) string {
 	slug := slugRe.ReplaceAllString(strings.ToLower(firmName), "-")
 	slug = strings.Trim(slug, "-")
 	if len(slug) > 30 {
@@ -29,7 +34,7 @@ func BucketName(firmName string) string {
 	}
 	suffix := make([]byte, 3)
 	rand.Read(suffix)
-	return fmt.Sprintf("vibe-backup-%s-%s", slug, hex.EncodeToString(suffix))
+	return fmt.Sprintf("%s-%s-%s", prefix, slug, hex.EncodeToString(suffix))
 }
 
 // Provision runs the BK-5 flow against a firm-owned account:
@@ -87,6 +92,40 @@ func assertNoDelete(k *Key) error {
 		}
 	}
 	return nil
+}
+
+// FilerProvisioned is BK-5a's output: the firm's document bucket, locked
+// from birth, and the no-delete key Filer will write with. The installer
+// injects both into Filer's environment.
+type FilerProvisioned struct {
+	Bucket Bucket
+	Key    Key
+}
+
+// ProvisionFilerBucket creates the Filer document bucket in the same
+// wizard pass as the backup bucket (decided 2026-08-29, QUESTIONS.md #8):
+// Object Lock compliance-mode retention on document objects, a lifecycle
+// rule expiring noncurrent versions, and a write-only (no-delete) key. A
+// compromised appliance cannot delete the firm's stored documents.
+func ProvisionFilerBucket(ctx context.Context, c *Client, firmName string, noncurrentDays int) (*FilerProvisioned, error) {
+	bkt, err := c.CreateLockedBucket(ctx, FilerBucketName(firmName))
+	if err != nil {
+		return nil, fmt.Errorf("b2 filer provisioning: create bucket: %w", err)
+	}
+	if !bkt.FileLockConfiguration.Value.IsFileLockEnabled {
+		return nil, fmt.Errorf("b2 filer provisioning: bucket %s reports Object Lock DISABLED — refusing", bkt.Name)
+	}
+	if err := c.SetLifecycle(ctx, bkt.ID, noncurrentDays); err != nil {
+		return nil, fmt.Errorf("b2 filer provisioning: lifecycle rules: %w", err)
+	}
+	key, err := c.CreateKey(ctx, "vibe-filer", bkt.ID, FilerCapabilities)
+	if err != nil {
+		return nil, fmt.Errorf("b2 filer provisioning: mint key: %w", err)
+	}
+	if err := assertNoDelete(key); err != nil {
+		return nil, err
+	}
+	return &FilerProvisioned{Bucket: *bkt, Key: *key}, nil
 }
 
 // VerifyCannotDelete is the runtime half of the BK-7 red-team: authorize

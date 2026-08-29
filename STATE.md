@@ -1,5 +1,18 @@
 # State
 
+## 2026-08-29 (Q&A session) — all open questions decided
+
+All eight QUESTIONS.md items resolved with the user (answers + cross-repo
+actions recorded there). Code changes that followed: LICENSE replaced
+with stock PolyForm Internal Use 1.0.0 (suite-canonical text, TRC's
+form); drill B2 check now a rotating tenth (`subsetForDrill`, new
+`state.DrillCounter`); wizard gained `provisionFilerBucket` — creates
+the Filer document bucket (locked from birth, lifecycle rules, no-delete
+key) in the same authorized pass, stored in state/secrets, shown in the
+status card. Local-only + Filer is refused (Filer's bucket is inherently
+off-site). Nightly schedule and the documented socket-proxy allowlist
+confirmed as-is.
+
 ## 2026-08-29 (later) — full build-out, BK-1 through BK-13
 
 **What exists now:** a working backup system, proven end-to-end by

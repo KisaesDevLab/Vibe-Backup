@@ -204,9 +204,10 @@ func (c *Client) CreateKey(ctx context.Context, name, bucketID string, capabilit
 	return &k, nil
 }
 
-// ProtectFilerBucket applies BK-5a to an existing bucket: versioning is
-// inherent in B2; we enable Object Lock default retention on document
-// objects and add a lifecycle rule expiring noncurrent versions.
+// ProtectFilerBucket retrofits BK-5a onto an EXISTING bucket (installs
+// that predate backup): Object Lock default retention on document
+// objects plus a lifecycle rule expiring noncurrent versions. New
+// installs use ProvisionFilerBucket instead.
 func (c *Client) ProtectFilerBucket(ctx context.Context, bucketID string, noncurrentDays int) error {
 	return c.call(ctx, "b2_update_bucket", map[string]any{
 		"accountId": c.AccountID(),
@@ -215,6 +216,18 @@ func (c *Client) ProtectFilerBucket(ctx context.Context, bucketID string, noncur
 			"mode":   "compliance",
 			"period": map[string]any{"duration": RetentionDays, "unit": "days"},
 		},
+		"lifecycleRules": []map[string]any{{
+			"fileNamePrefix":           "",
+			"daysFromHidingToDeleting": noncurrentDays,
+		}},
+	}, nil)
+}
+
+// SetLifecycle sets only the noncurrent-version expiry rule.
+func (c *Client) SetLifecycle(ctx context.Context, bucketID string, noncurrentDays int) error {
+	return c.call(ctx, "b2_update_bucket", map[string]any{
+		"accountId": c.AccountID(),
+		"bucketId":  bucketID,
 		"lifecycleRules": []map[string]any{{
 			"fileNamePrefix":           "",
 			"daysFromHidingToDeleting": noncurrentDays,

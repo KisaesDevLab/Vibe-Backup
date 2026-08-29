@@ -95,6 +95,7 @@ function renderStatus(d) {
     <dt>Local copy</dt><dd>${esc(h.localCopy)}</dd>
     <dt>Recovery Kit</dt><dd>${esc(h.recoveryKit)}</dd>
     <dt>B2 account</dt><dd>${esc(h.b2Account)}</dd>`;
+  if (d.filer) rows += `<dt>Filer documents</dt><dd>${esc(d.filer.bucket)} — locked, no-delete key</dd>`;
   let warns = (h.warnings||[]).map(w=>`<div class="warnbox">${esc(w)}</div>`).join("");
   let kitBtn = d.gate==="kit-issued" ? `<button class="primary" onclick="showConfirm()">Print &amp; confirm new Recovery Kit</button>` : "";
   card.innerHTML = `
@@ -125,6 +126,7 @@ function renderSetup(d) {
     <label>Firm name (appears on the Recovery Kit)</label><input id="sFirm">
     <label>Backblaze master application key ID <span class="mut">(from your firm's Backblaze account — used once to set up, never stored)</span></label><input id="sKeyId" class="mono">
     <label>Backblaze master application key</label><input id="sKey" type="password" class="mono">
+    <label style="display:flex;gap:.5rem;align-items:center;margin-top:.8rem"><input type="checkbox" id="sFiler" style="width:auto"> This firm uses Vibe Filer — also create protected document storage (recommended if Filer is installed)</label>
     <p class="mut">Don't have a Backblaze account yet? Create one at backblaze.com (choose B2 Cloud Storage), add a payment card, and generate the master application key under App Keys. Leave both key fields empty for local-only backup — not recommended.</p>
     <div class="row"><button class="primary" id="setupBtn" onclick="doSetup()">Create backup system</button></div>`;
 }
@@ -145,7 +147,7 @@ function showConfirm(){ $("confirmBox").innerHTML = confirmHTML(); }
 async function doSetup() {
   const b = $("setupBtn"); b.disabled = true;
   try {
-    await api("/api/setup", {method:"POST", body: JSON.stringify({firmName:$("sFirm").value, b2KeyId:$("sKeyId").value, b2Key:$("sKey").value})});
+    await api("/api/setup", {method:"POST", body: JSON.stringify({firmName:$("sFirm").value, b2KeyId:$("sKeyId").value, b2Key:$("sKey").value, provisionFilerBucket:$("sFiler")?.checked||false})});
     msg("Storage provisioned. Now print the Recovery Kit."); refresh();
   } catch(e){ msg("Setup failed: "+e.message, 10000); } finally { b.disabled = false; }
 }

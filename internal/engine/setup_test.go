@@ -130,6 +130,29 @@ func TestRotationLifecycle(t *testing.T) {
 	}
 }
 
+func TestSetupRefusesFilerWithoutB2(t *testing.T) {
+	e := testEngine(t, t.TempDir())
+	err := e.Setup(context.Background(), SetupInput{FirmName: "F", WithFilerBucket: true})
+	if err == nil || !strings.Contains(err.Error(), "Filer") {
+		t.Fatalf("filer bucket without B2 must be refused, got %v", err)
+	}
+}
+
+// QUESTIONS.md #4 (resolved 2026-08-29): rotating tenths, full coverage
+// over 10 drills, restic n/t syntax.
+func TestSubsetRotation(t *testing.T) {
+	seen := map[string]bool{}
+	for i := 0; i < 10; i++ {
+		seen[subsetForDrill(i)] = true
+	}
+	if len(seen) != 10 || !seen["1/10"] || !seen["10/10"] {
+		t.Fatalf("rotation must cover all tenths: %v", seen)
+	}
+	if subsetForDrill(10) != "1/10" {
+		t.Fatal("rotation must wrap")
+	}
+}
+
 func TestKitDataLocalOnly(t *testing.T) {
 	e := testEngine(t, t.TempDir())
 	if err := e.Setup(context.Background(), SetupInput{FirmName: "F"}); err != nil {

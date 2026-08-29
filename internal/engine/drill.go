@@ -36,6 +36,7 @@ func (e *Engine) RunDrill(ctx context.Context) (rec state.DrillRecord) {
 		}
 		e.Store.Mutate(func(st *state.State, _ *state.Secrets) error {
 			st.RecordDrill(rec)
+			st.DrillCounter++
 			return nil
 		})
 		e.Evidence("drill", rec.OK, rec.Error)
@@ -105,21 +106,29 @@ func (e *Engine) RunDrill(ctx context.Context) (rec state.DrillRecord) {
 		}
 	}
 
-	// 5. Repository integrity: full read on local, subset on B2 to bound
-	// egress cost (§10.4).
+	// 5. Repository integrity: full read on local; on B2 a ROTATING
+	// tenth per drill, so every byte is re-read over ~10 months — inside
+	// a generation's lifetime and inside B2's free-egress allowance
+	// (decided 2026-08-29, QUESTIONS.md #4).
 	if local != nil {
 		if err = e.Restic.Check(ctx, *local, ""); err != nil {
 			return rec
 		}
 	}
 	if remote != nil {
-		if err = e.Restic.Check(ctx, *remote, "2%"); err != nil {
+		if err = e.Restic.Check(ctx, *remote, subsetForDrill(e.Store.View().DrillCounter)); err != nil {
 			return rec
 		}
 	}
 
 	rec.OK = true
 	return rec
+}
+
+// subsetForDrill maps the lifetime drill count to restic's n/t rotating
+// read-data-subset syntax.
+func subsetForDrill(counter int) string {
+	return fmt.Sprintf("%d/10", counter%10+1)
 }
 
 func (e *Engine) drillDatabases(ctx context.Context, stageRoot string, man *snapshot.Manifest, rec *state.DrillRecord) error {

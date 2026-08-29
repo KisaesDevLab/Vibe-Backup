@@ -106,7 +106,7 @@ func newFake() *fakeDocker {
 			"trc": "ghcr.io/kisaesdevlab/vibe-tax-api:1.2.3",
 		},
 		dumps: map[string]string{
-			"pg_dumpall --globals-only -U vibe":  "-- roles",
+			"pg_dumpall --globals-only -U vibe":   "-- roles",
 			"pg_dump -Fc -U vibe -d tax_research": "PGDMP-bytes",
 		},
 	}

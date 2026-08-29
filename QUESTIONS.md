@@ -9,6 +9,9 @@ Open decisions for the user. Resolved items move to the bottom with their answer
 3. **Firm declines B2 entirely (plan §10.3).** Local-only is supported but forfeits off-site protection. Persistent console warning, Sentinel finding, or silent acceptance?
 4. **Drill cost control (plan §10.4).** `check --read-data` against B2 incurs egress; exact subset-check budget needs setting in BK-4.
 5. **Manifest field semantics.** `.appliance/manifest.json` mirrors Tax-Research-Chat's shape but hasn't been validated against Vibe-Appliance's loader (code search couldn't locate the consumer). Verify at BK-10a — or earlier if the appliance rejects unknown modules.
+6. **Socket proxy scope (new, from implementation).** The plan's "CONTAINERS:1 list/inspect-only" proxy cannot support the plan's own exec-based dumps, hooks, canaries, and drill container. docs/socket-proxy.md records the real endpoint allowlist and the threat trade-off. Confirm this deviation is acceptable, or the drill design changes.
+7. **Backup schedule default (new).** Implemented: nightly 01:30 firm-local + monthly day-1 drill. The plan's console mock shows "last backup 41 minutes ago," which implies something more frequent. Is nightly right for v1, or should the DB dump run hourly with volumes nightly?
+8. **BK-5a wiring (new).** Filer's bucket protection is implemented (`ProtectFilerBucket`) but not yet callable from the wizard: the wizard doesn't know Filer's bucket ID until Filer's own provisioning story is settled. Where does Filer's bucket identity come from in standalone mode?
 
 ## Resolved
 

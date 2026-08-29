@@ -4,18 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-BK-0 scaffold. `vibe-backup-BUILD-PLAN.md` is the authoritative design (v2) — read it in full before substantive work. `PHASES.md` tracks phase status, `STATE.md` is the session log (update both when finishing work), and `QUESTIONS.md` holds open decisions for the user — surface new ones there rather than deciding them. Conventional commits throughout.
+Working system, BK-1..BK-13 implemented (see `PHASES.md` for honest per-phase status — starred entries name what still needs live B2 / real ParadeDB / real hardware / a human). `vibe-backup-BUILD-PLAN.md` is the authoritative design (v2) — read it before substantive work. `STATE.md` is the session log (update both when finishing work); `QUESTIONS.md` holds open decisions for the user — surface new ones there rather than deciding them. Conventional commits throughout.
 
 ## Commands
 
-Go is **not installed on this Windows dev box** — build and test through Docker, or lean on CI:
+Go is **not installed on this Windows dev box** — build and test through Docker, or lean on CI. Cache volumes `vb-gomod`/`vb-gocache` exist to speed the loop:
 
-- `docker build --target runtime -t vibe-backup .` — build the image (multi-stage; final stage is `scratch`, non-root)
-- `docker build --target builder .` — compile + fail on Go errors without producing the runtime image
-- Run tests: `docker run --rm -v "${PWD}:/src" -w /src golang:1.25-alpine go test ./...` (single test: append `-run TestName ./cmd/vibe-backup`)
-- `docker run --rm -p 4000:4000 vibe-backup` — serve `/api/health` and `/api/ping` on :4000
+- Tests: `docker run --rm -v "${PWD}:/src" -w /src -v vb-gomod:/go/pkg/mod -v vb-gocache:/root/.cache/go-build golang:1.25-alpine sh -c "go vet ./... && go test ./..."` (single test: `go test -run TestName ./internal/<pkg>/`)
+- Image: `docker build --target runtime -t vibe-backup:dev .` — multi-stage; final stage `scratch`, non-root, must stay **< 60 MB** (CI gates it; restic is upx-compressed)
+- **End-to-end (the real proof): `bash test/e2e/run.sh` in Git Bash** — full loop against real Docker/restic/Postgres. `KEEP=1` leaves the containers up for debugging. Script handles MSYS path-conversion pitfalls; don't add `curl -o /dev/null` or `docker exec` into the scratch image (no shell — use `docker cp`).
+- Run locally: `docker run --rm -p 4000:4000 -v //var/run/docker.sock:/var/run/docker.sock -u 0 vibe-backup:dev` (UI at http://localhost:4000; production always uses a socket proxy per docs/socket-proxy.md)
 
-CI (`.github/workflows/ci.yml`) runs vet/test/build plus a Docker smoke build on every push/PR. `release.yml` publishes multi-arch (amd64+arm64) to `ghcr.io/kisaesdevlab/vibe-backup` — `:main` on main pushes, semver tags + `:latest` only on `v*` tag pushes. Go source is stdlib-only so far; keep it that way until a dependency earns its place.
+CI (`ci.yml`): vet/test/build, Docker build, size gate, binary smoke-runs. `release.yml` publishes multi-arch to `ghcr.io/kisaesdevlab/vibe-backup` — `:main` on main pushes, semver + `:latest` only on `v*` tags.
+
+## Code map (internal/)
+
+`dockerapi` (own minimal Docker client, stdlib, API v1.44 floor, hijacked exec streaming — NOT the official SDK, image budget) → `discovery` (label-based contract discovery, error-not-skip) → `contract` (schema-1 parser, the cross-repo API — changing it means 12 module updates) → `stage` (staging transaction: fatal-secret gate, hooks, exec pg_dump, volume capture) + `pairing` (BK-3a atomicity seal; verify before EVERY restore) + `snapshot` (manifest, exact image tags) → `resticw` (refuses to prune non-prunable repos — B2 is append-only by design) → `engine` (RunBackup/RunDrill/Rotate/Setup/restores + scheduler; drill creates an ephemeral DB on the live network and execs module canaries with restored secrets) → `b2` (provisioning refuses lock-disabled buckets and delete-capable keys), `kit` (passphrase/six-word code/PDF), `state` (state.json + secrets.json 0600), `health` (status card truth), `server` (API + embedded UI; no auth by design — ingress authenticates).
+
+Invariants that must survive any refactor: backups refuse to run before kit confirmation; a declared-but-uncapturable artifact fails the run loudly; pairing.json is written last and verified before any restore; nothing the appliance holds can delete B2 history; the drill's canary uses restored key material against restored data.
 
 ## Suite conventions (learned from sibling repos)
 

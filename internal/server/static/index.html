@@ -63,7 +63,11 @@ let statusData = null;
 
 function msg(text, ms=6000) { const m=$("msg"); m.textContent=text; m.style.display="block"; setTimeout(()=>m.style.display="none", ms); }
 async function api(path, opts={}) {
-  const r = await fetch(path, {headers:{"Content-Type":"application/json"}, ...opts});
+  // Relative, not absolute: this page must work both served at / (standalone)
+  // and behind an authenticated reverse-proxy prefix (the Vibe Appliance
+  // console mounts it under /admin/apps/vibe-backup/ — BK-10a). A leading
+  // slash would escape the prefix and hit the console's own routes.
+  const r = await fetch(path.replace(/^\//, ""), {headers:{"Content-Type":"application/json"}, ...opts});
   const ct = r.headers.get("Content-Type")||"";
   if (!r.ok) {
     let e = "request failed";
@@ -146,7 +150,7 @@ function confirmHTML() {
   return `
     <h1>Print your Recovery Kit</h1>
     <p><strong>Backups will not start</strong> until you download the kit, print it, store it in a safe place, and type the six-word activation code printed on it.</p>
-    <div class="row"><a href="/api/kit.pdf"><button class="primary">Download Recovery Kit (PDF)</button></a></div>
+    <div class="row"><a href="api/kit.pdf"><button class="primary">Download Recovery Kit (PDF)</button></a></div>
     <label>The six words printed on the kit</label><input id="cCode" placeholder="e.g. maple harbor stone lantern river fox">
     <label>Custodian 1 (who can access the stored kit)</label><input id="cCust1">
     <label>Custodian 2</label><input id="cCust2">

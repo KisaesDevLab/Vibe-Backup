@@ -1,5 +1,28 @@
 # State
 
+## 2026-08-30 — BK-10a prep: manifest schema-compliance + prefix-agnostic UI
+
+Two defects found while starting the appliance-side integration:
+
+- `.appliance/manifest.json` did NOT validate against the appliance's
+  `console/manifest.schema.json` (jsonschema, `additionalProperties:
+  false`): top-level `note` is not an allowed property (the sanctioned
+  slot is `_doc`) and `description` exceeded maxLength 200 (209). The
+  a5107d9 claim of matching "the shape the loader actually validates"
+  held for the runtime loader but not for the federation e2e schema
+  gate that runs on every vendored manifest. Fixed: `note` → `_doc`,
+  description trimmed to 181. Vendor-verbatim is now actually true.
+- The UI used absolute paths (`fetch("/api/...")`, `href="/api/kit.pdf"`),
+  which break behind the console's authenticated proxy prefix
+  (`/admin/apps/vibe-backup/`) — requests would escape the prefix into
+  the console's own routes. Now relative: `api()` strips a leading
+  slash, the kit link is `api/kit.pdf`. Works identically standalone
+  (page at `/`) and proxied (page at any `<prefix>/`).
+
+Appliance-side BK-10a (vendored manifest, apps/vibe-backup.yml overlay
+with the socket proxy, env template, console proxy route) proceeds in
+Vibe-Appliance.
+
 ## 2026-08-30 — failure-notification plumbing (BK-11 push path)
 
 Answered "do we have notification on backup failure": previously

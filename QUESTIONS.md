@@ -4,7 +4,20 @@ Open decisions for the user. Resolved items move to the bottom with their answer
 
 ## Open
 
-*(none)*
+- **Appliance EXTRA_PATHS vs non-root (BK-10a residue).** The build plan's §3
+  non-module items include the env files and Caddy's cert store, but on the
+  appliance those trees are root-600 while this sidecar is non-root by policy
+  (BK-1, uid 65532) — listing them in `VIBE_BACKUP_EXTRA_PATHS` would fail
+  every backup with EACCES. The appliance integration ships with
+  `EXTRA_PATHS=/host/vibe/state.json` only (state.json is 644) and keeps
+  Duplicati's whole-tree job as the net. Options to close the gap:
+  (a) the appliance grants read ACLs (`setfacl -Rm u:65532:rX` + default
+  ACLs) on `/opt/vibe/env` and `/opt/vibe/data/caddy` at enable time;
+  (b) a root-owned host-side step (cron or enable-hook) tars those trees
+  into the sidecar's own data dir where it can read them;
+  (c) accept that per-app key material already travels via BK-2b contracts
+  (container-inspect) and scope EXTRA_PATHS to what a non-root reader can
+  see. Decide before declaring Duplicati optional.
 
 ## Resolved (2026-08-30)
 

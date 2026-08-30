@@ -96,6 +96,12 @@ function renderStatus(d) {
     <dt>Recovery Kit</dt><dd>${esc(h.recoveryKit)}</dd>
     <dt>B2 account</dt><dd>${esc(h.b2Account)}</dd>`;
   if (d.filer) rows += `<dt>Filer documents</dt><dd>${esc(d.filer.bucket)} — locked, no-delete key</dd>`;
+  if (d.notify) {
+    let n = d.notify.email
+      ? (d.notify.mailerReady ? esc(d.notify.email) : esc(d.notify.email) + " (no mail server on this appliance — alerts can't send)")
+      : "not set — failures show only on this page";
+    rows += `<dt>Failure alerts</dt><dd>${n}</dd>`;
+  }
   let warns = (h.warnings||[]).map(w=>`<div class="warnbox">${esc(w)}</div>`).join("");
   let kitBtn = d.gate==="kit-issued" ? `<button class="primary" onclick="showConfirm()">Print &amp; confirm new Recovery Kit</button>` : "";
   card.innerHTML = `
@@ -108,6 +114,10 @@ function renderStatus(d) {
       ${kitBtn}
     </div>
     <div id="confirmBox"></div>
+    <details><summary>Alert settings</summary>
+      <label>Email for failure alerts</label><input id="nEmail" value="${esc(d.notify?.email||"")}" placeholder="office@yourfirm.com">
+      <div class="row"><button onclick="saveEmail()">Save</button><button onclick="testEmail()">Send test alert</button></div>
+    </details>
     <details><summary>Recent activity</summary>${renderHistory(d)}</details>`;
 }
 
@@ -124,6 +134,7 @@ function renderSetup(d) {
     <h1>Set up backups</h1>
     <p>Three fields. Everything else — bucket, immutability, retention, schedule — is configured for you.</p>
     <label>Firm name (appears on the Recovery Kit)</label><input id="sFirm">
+    <label>Email for failure alerts <span class="mut">(who should know when a backup fails)</span></label><input id="sEmail" type="email" placeholder="office@yourfirm.com">
     <label>Backblaze master application key ID <span class="mut">(from your firm's Backblaze account — used once to set up, never stored)</span></label><input id="sKeyId" class="mono">
     <label>Backblaze master application key</label><input id="sKey" type="password" class="mono">
     <label style="display:flex;gap:.5rem;align-items:center;margin-top:.8rem"><input type="checkbox" id="sFiler" style="width:auto"> This firm uses Vibe Filer — also create protected document storage (recommended if Filer is installed)</label>
@@ -147,7 +158,7 @@ function showConfirm(){ $("confirmBox").innerHTML = confirmHTML(); }
 async function doSetup() {
   const b = $("setupBtn"); b.disabled = true;
   try {
-    await api("/api/setup", {method:"POST", body: JSON.stringify({firmName:$("sFirm").value, b2KeyId:$("sKeyId").value, b2Key:$("sKey").value, provisionFilerBucket:$("sFiler")?.checked||false})});
+    await api("/api/setup", {method:"POST", body: JSON.stringify({firmName:$("sFirm").value, b2KeyId:$("sKeyId").value, b2Key:$("sKey").value, provisionFilerBucket:$("sFiler")?.checked||false, notifyEmail:$("sEmail")?.value||""})});
     msg("Storage provisioned. Now print the Recovery Kit."); refresh();
   } catch(e){ msg("Setup failed: "+e.message, 10000); } finally { b.disabled = false; }
 }
@@ -172,6 +183,16 @@ async function runDrill() {
   try { const r = await api("/api/drill/run", {method:"POST", body:"{}"}); msg("Drill passed — restore verified."); }
   catch(e){ msg("DRILL FAILED: "+e.message, 15000); }
   finally { refresh(); }
+}
+
+async function saveEmail() {
+  try { await api("/api/notify/email", {method:"POST", body: JSON.stringify({email:$("nEmail").value})}); msg("Alert email saved."); refresh(); }
+  catch(e){ msg(e.message, 8000); }
+}
+
+async function testEmail() {
+  try { const r = await api("/api/notify/test", {method:"POST", body:"{}"}); msg("Test alert sent to " + r.sent + " — check the inbox."); }
+  catch(e){ msg(e.message, 10000); }
 }
 
 async function showRestore() {

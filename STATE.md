@@ -1,5 +1,22 @@
 # State
 
+## 2026-08-30 — failure-notification plumbing (BK-11 push path)
+
+Answered "do we have notification on backup failure": previously
+pull-only (console card) plus an unprovisioned ping URL. Now: SMTP
+alert emails (internal/notify — stdlib net/smtp, STARTTLS + implicit-TLS
+465, header-injection guard) sent on backup failure, drill failure, and
+B2 suspended/unauthorized transitions; a scheduler silence watchdog
+(26h since last good backup or activation); 22h per-kind cooldown
+persisted in state.LastAlerts; failed sends don't consume the cooldown.
+Wizard collects the alert email; Alert settings in the UI (change +
+"Send test alert" via /api/notify/email, /api/notify/test). SMTP config
+is installer env (VIBE_BACKUP_SMTP_*, manifest updated), never
+operator-typed. docs/deadman-endpoint.md specs the hosted silence
+service (Kisaes infra, future) — the sidecar's ping side already works
+with any healthchecks-style URL today. Alerts are best-effort: a broken
+mailer never breaks a backup.
+
 ## 2026-08-29 (Q&A session) — all open questions decided
 
 All eight QUESTIONS.md items resolved with the user (answers + cross-repo

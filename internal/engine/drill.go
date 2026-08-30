@@ -40,6 +40,11 @@ func (e *Engine) RunDrill(ctx context.Context) (rec state.DrillRecord) {
 			return nil
 		})
 		e.Evidence("drill", rec.OK, rec.Error)
+		if !rec.OK {
+			e.Alert("drill-failure", "Vibe Backup: the restore drill FAILED — backups may not be restorable",
+				"The monthly restore drill could not verify your backups.\n\nWhat went wrong:\n"+rec.Error+
+					"\n\nThis matters more than a missed backup: it means the thing you believe protects you has not been proven to work. Treat it as urgent.")
+		}
 	}()
 
 	// 1. Pick a repository — local preferred (no egress, plan §10.4);

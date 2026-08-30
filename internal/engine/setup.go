@@ -23,6 +23,8 @@ type SetupInput struct {
 	// WithFilerBucket provisions the firm's Filer document bucket in the
 	// same pass (BK-5a): locked from birth, no-delete key for Filer.
 	WithFilerBucket bool
+	// NotifyEmail receives failure alerts. Optional but nagged about.
+	NotifyEmail string
 	// B2APIBase overrides the endpoint in tests.
 	B2APIBase string
 }
@@ -86,6 +88,7 @@ func (e *Engine) Setup(ctx context.Context, in SetupInput) error {
 		}
 		st.FirmName = in.FirmName
 		st.ApplianceID = in.ApplianceID
+		st.NotifyEmail = strings.TrimSpace(in.NotifyEmail)
 		st.Generations = append(st.Generations, gen)
 		st.VerificationCode = code
 		st.Gate = state.GateKitIssued

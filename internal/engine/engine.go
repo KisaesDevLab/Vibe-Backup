@@ -15,6 +15,7 @@ import (
 	"github.com/KisaesDevLab/Vibe-Backup/internal/config"
 	"github.com/KisaesDevLab/Vibe-Backup/internal/discovery"
 	"github.com/KisaesDevLab/Vibe-Backup/internal/dockerapi"
+	"github.com/KisaesDevLab/Vibe-Backup/internal/notify"
 	"github.com/KisaesDevLab/Vibe-Backup/internal/pairing"
 	"github.com/KisaesDevLab/Vibe-Backup/internal/resticw"
 	"github.com/KisaesDevLab/Vibe-Backup/internal/stage"
@@ -27,6 +28,8 @@ type Engine struct {
 	Store   *state.Store
 	Restic  *resticw.Runner
 	Version string
+	// Notify sends failure alert emails; nil = email alerting off.
+	Notify notify.Sender
 }
 
 // ErrGateClosed is returned when backups are attempted before the
@@ -84,6 +87,10 @@ func (e *Engine) RunBackup(ctx context.Context) (rec state.RunRecord, err error)
 		e.Evidence("backup", rec.OK, rec.Error)
 		if rec.OK {
 			e.ping(ctx)
+		} else if err != ErrGateClosed {
+			e.Alert("backup-failure", "Vibe Backup: a backup FAILED",
+				"Tonight's backup did not complete.\n\nWhat went wrong:\n"+rec.Error+
+					"\n\nYour previous backups are unaffected. If this repeats, the console's Backup page shows the specific fix.")
 		}
 	}()
 

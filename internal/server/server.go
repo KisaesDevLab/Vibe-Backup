@@ -47,6 +47,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/setup", s.handleSetup)
 	mux.HandleFunc("GET /api/kit.pdf", s.handleKitPDF)
 	mux.HandleFunc("POST /api/kit/confirm", s.handleKitConfirm)
+	mux.HandleFunc("POST /api/notify/email", s.handleNotifyEmail)
+	mux.HandleFunc("POST /api/notify/test", s.handleNotifyTest)
 	mux.HandleFunc("POST /api/backup/run", s.handleBackupRun)
 	mux.HandleFunc("POST /api/drill/run", s.handleDrillRun)
 	mux.HandleFunc("GET /api/snapshots", s.handleSnapshots)
@@ -91,6 +93,11 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 			"protectedAt": st.FilerProtectedAt,
 		}
 	}
+	out["notify"] = map[string]any{
+		"email":          st.NotifyEmail,
+		"mailerReady":    s.Engine.Notify != nil,
+		"pingConfigured": s.Engine.Cfg.PingURL != "",
+	}
 	jsonOut(w, 200, out)
 }
 
@@ -101,6 +108,7 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		B2KeyID     string `json:"b2KeyId"`
 		B2Key       string `json:"b2Key"`
 		WithFiler   bool   `json:"provisionFilerBucket"`
+		NotifyEmail string `json:"notifyEmail"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		jsonErr(w, 400, err)
@@ -112,6 +120,7 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		B2MasterKeyID:   in.B2KeyID,
 		B2MasterKey:     in.B2Key,
 		WithFilerBucket: in.WithFiler,
+		NotifyEmail:     in.NotifyEmail,
 		B2APIBase:       s.Engine.Cfg.B2API,
 	})
 	if err != nil {
@@ -160,6 +169,52 @@ func (s *Server) handleKitConfirm(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Engine.Evidence("kit-confirmed", true, "activation gate passed")
 	jsonOut(w, 200, map[string]string{"status": "active"})
+}
+
+func (s *Server) handleNotifyEmail(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		jsonErr(w, 400, err)
+		return
+	}
+	email := strings.TrimSpace(in.Email)
+	if email != "" && (!strings.Contains(email, "@") || strings.ContainsAny(email, " \r\n")) {
+		jsonErr(w, 400, fmt.Errorf("that doesn't look like an email address"))
+		return
+	}
+	err := s.Engine.Store.Mutate(func(st *state.State, _ *state.Secrets) error {
+		st.NotifyEmail = email
+		return nil
+	})
+	if err != nil {
+		jsonErr(w, 500, err)
+		return
+	}
+	jsonOut(w, 200, map[string]string{"email": email})
+}
+
+// handleNotifyTest sends a test alert immediately (no cooldown) so the
+// operator can prove the pipeline before they need it.
+func (s *Server) handleNotifyTest(w http.ResponseWriter, r *http.Request) {
+	st := s.Engine.Store.View()
+	if s.Engine.Notify == nil {
+		jsonErr(w, 400, fmt.Errorf("no mail server is configured on this appliance (VIBE_BACKUP_SMTP_HOST) — ask whoever installed Vibe to set one, or rely on the console and dead-man ping"))
+		return
+	}
+	if st.NotifyEmail == "" {
+		jsonErr(w, 400, fmt.Errorf("set a notification email first"))
+		return
+	}
+	err := s.Engine.Notify.Send(st.NotifyEmail, "Vibe Backup: test alert",
+		"This is a test of Vibe Backup's failure alerts. If you are reading it, alerts for failed backups, failed restore drills, and Backblaze account problems will reach this address.\n\nNothing is wrong.")
+	if err != nil {
+		jsonErr(w, 500, fmt.Errorf("test email failed: %w", err))
+		return
+	}
+	s.Engine.Evidence("alert-email-test", true, st.NotifyEmail)
+	jsonOut(w, 200, map[string]string{"sent": st.NotifyEmail})
 }
 
 func (s *Server) handleBackupRun(w http.ResponseWriter, r *http.Request) {

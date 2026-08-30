@@ -89,6 +89,11 @@ type State struct {
 	// DrillCounter counts drills ever run — drives the rotating B2
 	// read-data subset (n/10) so every byte is verified over ~10 months.
 	DrillCounter int `json:"drillCounter,omitempty"`
+	// NotifyEmail receives failure alerts (BK-11 push path). Collected by
+	// the wizard; empty = console-only alerting.
+	NotifyEmail string `json:"notifyEmail,omitempty"`
+	// LastAlerts rate-limits alert emails: alert kind -> last sent.
+	LastAlerts map[string]time.Time `json:"lastAlerts,omitempty"`
 }
 
 type Secrets struct {

@@ -77,6 +77,15 @@ func (e *Engine) tick(ctx context.Context, now time.Time) {
 		e.CheckB2Health(ctx)
 	}
 
+	// Silence watchdog (BK-11): the alert email for "backups have gone
+	// quiet" — fires when the daily failure alert couldn't (process
+	// wedged, scheduler starved, clock chaos), and repeats daily via the
+	// alert cooldown until backups are healthy again.
+	if silenceAlertDue(&st, 26*time.Hour, now) {
+		e.Alert("backup-silence", "Vibe Backup: no completed backup in over 26 hours",
+			"The appliance has not completed a backup in more than a day.\n\nIf the appliance is running, open the console's Backup page — it will name the problem. If the appliance is off or unreachable, that is the problem.")
+	}
+
 	// Housekeeping.
 	e.ExpireOldPassphrases(now)
 }
@@ -100,6 +109,14 @@ func (e *Engine) CheckB2Health(ctx context.Context) {
 	})
 	if !h.OK {
 		e.Evidence("b2-health", false, h.Problem+": "+h.Detail)
+		switch h.Problem {
+		case "suspended":
+			e.Alert("b2-suspended", "Vibe Backup: your Backblaze account appears SUSPENDED",
+				"Off-site backups are failing because the firm's Backblaze account is not accepting uploads — usually an expired payment card.\n\nFix: log in at backblaze.com and update the payment method. Backups resume automatically.")
+		case "unauthorized":
+			e.Alert("b2-unauthorized", "Vibe Backup: the Backblaze key was rejected",
+				"The appliance's storage key was refused by Backblaze — it may have been revoked in the Backblaze console.\n\nOff-site backups are stopped until this is fixed; local backups continue if configured.")
+		}
 	}
 }
 

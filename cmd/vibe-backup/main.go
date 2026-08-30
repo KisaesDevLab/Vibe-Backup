@@ -13,6 +13,7 @@ import (
 	"github.com/KisaesDevLab/Vibe-Backup/internal/config"
 	"github.com/KisaesDevLab/Vibe-Backup/internal/dockerapi"
 	"github.com/KisaesDevLab/Vibe-Backup/internal/engine"
+	"github.com/KisaesDevLab/Vibe-Backup/internal/notify"
 	"github.com/KisaesDevLab/Vibe-Backup/internal/resticw"
 	"github.com/KisaesDevLab/Vibe-Backup/internal/server"
 	"github.com/KisaesDevLab/Vibe-Backup/internal/state"
@@ -59,13 +60,19 @@ func build() (*engine.Engine, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &engine.Engine{
+	e := &engine.Engine{
 		Cfg:     cfg,
 		Docker:  docker,
 		Store:   store,
 		Restic:  resticw.NewRunner(),
 		Version: version,
-	}, nil
+	}
+	// Assign only a non-nil mailer — a typed-nil in the interface would
+	// defeat the `e.Notify == nil` checks.
+	if m := notify.FromEnv(); m != nil {
+		e.Notify = m
+	}
+	return e, nil
 }
 
 func serve() error {

@@ -45,6 +45,22 @@ Nothing. The console shows one card:
   button. The most common cause is an expired card on the Backblaze
   account.
 
+## How you find out something is wrong
+
+Three layers, and you should have all three:
+
+1. **The console card goes red** — but only helps if someone looks.
+2. **Email alerts** to the address you gave at setup: a failed backup, a
+   failed restore drill, or a Backblaze account problem each send one
+   email, repeated at most daily until fixed. Use **Alert settings →
+   Send test alert** once to prove it reaches you. (Requires the
+   appliance's installer to have configured a mail server; the card's
+   "Failure alerts" row says if it can't send.)
+3. **The dead-man check** — an outside service that notices when the
+   appliance goes *silent*, which is the one thing a dead appliance
+   can't email you about. Your installer or MSP wires this
+   (docs/deadman-endpoint.md).
+
 ## When something goes wrong
 
 | Situation | Do this |

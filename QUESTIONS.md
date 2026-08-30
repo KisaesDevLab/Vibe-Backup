@@ -4,7 +4,11 @@ Open decisions for the user. Resolved items move to the bottom with their answer
 
 ## Open
 
-1. **Manifest field semantics.** `.appliance/manifest.json` mirrors Tax-Research-Chat's shape but hasn't been validated against Vibe-Appliance's loader (code search couldn't locate the consumer). Verify at BK-10a — or earlier if the appliance rejects unknown modules.
+*(none)*
+
+## Resolved (2026-08-30)
+
+- **Manifest field semantics — verified against the Vibe-Appliance loader.** The appliance does NOT read module repos' `.appliance/` files; `lib/enable-app.sh` validates `console/manifests/<slug>.json` **vendored inside Vibe-Appliance**, requiring `schemaVersion, slug, displayName, description, image, subdomain` (singular string), `ports, routing` (`default_upstream` + optional matchers/deny_paths), `env, health`. Our original mirror of Tax-Research-Chat's repo copy (plural `subdomains`, no `routing`) would have failed preflight — TRC's own repo copy is stale relative to its vendored manifest. Ours is rewritten to the canonical shape and passes the loader's exact validation snippet. *BK-10a needs three files in Vibe-Appliance: `console/manifests/vibe-backup.json` (vendor ours verbatim), `apps/vibe-backup.yml` (compose overlay: sidecar + socket proxy + state volume), `env-templates/per-app/vibe-backup.env.tmpl`. Note the appliance's Postgres container is `vibe-postgres`, encoded via `static:` env.*
 
 ## Resolved (Q&A session, 2026-08-29)
 

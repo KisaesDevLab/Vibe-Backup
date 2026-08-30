@@ -3,22 +3,39 @@
   "slug": "vibe-backup",
   "displayName": "Vibe Backup",
   "description": "Bundled backup and verified-restore sidecar: restic to a firm-owned Backblaze B2 bucket with Object Lock, monthly restore drills with per-module decrypt canaries, printed Recovery Kit, and bare-metal recovery.",
-  "userFacing": false,
+
   "image": {
     "server": "ghcr.io/kisaesdevlab/vibe-backup",
     "defaultTag": "latest"
   },
+
+  "subdomain": "backup",
   "ports": { "server": 4000 },
-  "subdomains": [],
+
+  "routing": {
+    "default_upstream": "vibe-backup:4000"
+  },
+
+  "userFacing": false,
+
   "depends": [],
-  "websocket": false,
+
   "env": {
-    "required": [],
+    "required": [
+      { "name": "DOCKER_HOST", "from": "static:tcp://vibe-backup-socket-proxy:2375", "doc": "Filtered Docker socket proxy — never the raw socket. Endpoint allowlist: docs/socket-proxy.md in the Vibe-Backup repo." },
+      { "name": "VIBE_BACKUP_PG_CONTAINER", "from": "static:vibe-postgres", "doc": "The appliance's Postgres container; dumps exec inside it so tooling always matches the server version." }
+    ],
     "optional": [
-      { "name": "VIBE_BACKUP_ADDR", "default": ":4000" }
+      { "name": "VIBE_BACKUP_LOCAL_REPO", "doc": "Local restic repository path (USB/NAS mount). Empty = B2 only, warned about in the console." },
+      { "name": "VIBE_BACKUP_EXTRA_PATHS", "doc": "Colon-separated host paths mounted into the sidecar to capture: compose file, caddy_data, env files (build plan §3 items 2/3/4/6)." },
+      { "name": "VIBE_BACKUP_APPLIANCE_MANIFEST", "doc": "Installed-modules list for the appliance-mode discovery cross-check; unset in standalone mode." },
+      { "name": "VIBE_BACKUP_TZ", "doc": "Firm timezone for the 01:30 nightly backup window. Defaults to container-local time." },
+      { "name": "VIBE_BACKUP_PING_URL", "doc": "Dead-man's-switch URL, GET after every successful backup (BK-11)." },
+      { "name": "VIBE_BACKUP_B2_API", "doc": "Backblaze endpoint override. Tests only." }
     ]
   },
+
   "health": "/api/health",
-  "ping": "/api/ping",
-  "note": "BK-0 scaffold. userFacing flips to true when the self-contained UI ships (BK-10) and the appliance console proxies it (BK-10a). Discovery of what to back up is by container label (vibe.backup.contract), not by this manifest — see build plan D-9 and section 4.2. Requires a Docker socket proxy restricted to list/inspect; wiring lands with BK-10a in Vibe-Appliance."
+
+  "note": "This file is the source of truth for the vendored copy at Vibe-Appliance console/manifests/vibe-backup.json (BK-10a). Appliance integration additionally needs apps/vibe-backup.yml (compose overlay: vibe-backup + its socket proxy, state volume at /var/lib/vibe-backup) and env-templates/per-app/vibe-backup.env.tmpl. No database/redis blocks: the sidecar owns no Postgres database and must keep running when the stack it protects is broken. userFacing false until the console proxies the UI; the 'backup' subdomain is reserved for standalone mode."
 }

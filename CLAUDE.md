@@ -25,8 +25,8 @@ Invariants that must survive any refactor: backups refuse to run before kit conf
 
 ## Suite conventions (learned from sibling repos)
 
-- License: PolyForm Internal Use 1.0.0 aligned with Vibe-Appliance's text (`LicenseRef-PolyForm-Internal-Use-1.0.0` in OCI labels). See QUESTIONS.md #2 for a known divergence between appliance and module license texts.
-- `.appliance/manifest.json` is the appliance integration entry, mirroring Vibe-Tax-Research-Chat's shape; its field semantics are unverified against the appliance loader (QUESTIONS.md #5).
+- License: stock PolyForm Internal Use 1.0.0 — suite-canonical per the 2026-08-29 Q&A decision (`LicenseRef-PolyForm-Internal-Use-1.0.0` in OCI labels).
+- `.appliance/manifest.json` matches the shape Vibe-Appliance's loader actually validates (`lib/enable-app.sh` → `console/manifests/<slug>.json`, vendored there at BK-10a): singular `subdomain`, `routing.default_upstream`, `env.required[]` with `from:` sources. Don't mirror module repos' `.appliance` files — some are stale against their vendored copies.
 - The suite's other repos are TypeScript/pnpm; this repo is deliberately Go (BK-1's < 60 MB image criterion + restic pairing — rationale in STATE.md).
 
 ## What this project is

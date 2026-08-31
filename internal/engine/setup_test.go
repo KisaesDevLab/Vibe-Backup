@@ -130,11 +130,25 @@ func TestRotationLifecycle(t *testing.T) {
 	}
 }
 
-func TestSetupRefusesFilerWithoutB2(t *testing.T) {
+// A kit must never print a blank appliance ID: absent input and env, one
+// is generated (design rule 1 — the operator is never asked).
+func TestSetupGeneratesApplianceID(t *testing.T) {
+	t.Setenv("VIBE_BACKUP_APPLIANCE_ID", "")
 	e := testEngine(t, t.TempDir())
-	err := e.Setup(context.Background(), SetupInput{FirmName: "F", WithFilerBucket: true})
-	if err == nil || !strings.Contains(err.Error(), "Filer") {
-		t.Fatalf("filer bucket without B2 must be refused, got %v", err)
+	if err := e.Setup(context.Background(), SetupInput{FirmName: "F"}); err != nil {
+		t.Fatal(err)
+	}
+	if id := e.Store.View().ApplianceID; !strings.HasPrefix(id, "vb-") || len(id) != 11 {
+		t.Fatalf("generated appliance id: %q", id)
+	}
+
+	t.Setenv("VIBE_BACKUP_APPLIANCE_ID", "firm-npx42")
+	e2 := testEngine(t, t.TempDir())
+	if err := e2.Setup(context.Background(), SetupInput{FirmName: "F"}); err != nil {
+		t.Fatal(err)
+	}
+	if id := e2.Store.View().ApplianceID; id != "firm-npx42" {
+		t.Fatalf("env appliance id not honored: %q", id)
 	}
 }
 

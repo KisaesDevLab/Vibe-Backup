@@ -86,13 +86,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 		"backups":    tail(st.LastBackups, 10),
 		"drills":     tailDrills(st.LastDrills, 6),
 	}
-	if st.FilerBucket != "" {
-		out["filer"] = map[string]any{
-			"bucket":      st.FilerBucket,
-			"keyId":       st.FilerKeyID,
-			"protectedAt": st.FilerProtectedAt,
-		}
-	}
+	out["applianceId"] = st.ApplianceID
 	out["notify"] = map[string]any{
 		"email":          st.NotifyEmail,
 		"mailerReady":    s.Engine.Notify != nil,
@@ -107,7 +101,6 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		ApplianceID string `json:"applianceId"`
 		B2KeyID     string `json:"b2KeyId"`
 		B2Key       string `json:"b2Key"`
-		WithFiler   bool   `json:"provisionFilerBucket"`
 		NotifyEmail string `json:"notifyEmail"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
@@ -115,13 +108,12 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := s.Engine.Setup(r.Context(), engine.SetupInput{
-		FirmName:        in.FirmName,
-		ApplianceID:     in.ApplianceID,
-		B2MasterKeyID:   in.B2KeyID,
-		B2MasterKey:     in.B2Key,
-		WithFilerBucket: in.WithFiler,
-		NotifyEmail:     in.NotifyEmail,
-		B2APIBase:       s.Engine.Cfg.B2API,
+		FirmName:      in.FirmName,
+		ApplianceID:   in.ApplianceID,
+		B2MasterKeyID: in.B2KeyID,
+		B2MasterKey:   in.B2Key,
+		NotifyEmail:   in.NotifyEmail,
+		B2APIBase:     s.Engine.Cfg.B2API,
 	})
 	if err != nil {
 		jsonErr(w, 400, err)

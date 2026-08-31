@@ -2,7 +2,10 @@ package engine
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -20,9 +23,6 @@ type SetupInput struct {
 	// local-only mode (plan §10.3): allowed, persistently warned about.
 	B2MasterKeyID string
 	B2MasterKey   string
-	// WithFilerBucket provisions the firm's Filer document bucket in the
-	// same pass (BK-5a): locked from birth, no-delete key for Filer.
-	WithFilerBucket bool
 	// NotifyEmail receives failure alerts. Optional but nagged about.
 	NotifyEmail string
 	// B2APIBase overrides the endpoint in tests.
@@ -43,26 +43,15 @@ func (e *Engine) Setup(ctx context.Context, in SetupInput) error {
 
 	localOnly := in.B2MasterKeyID == "" && in.B2MasterKey == ""
 	var prov *b2.Provisioned
-	var filer *b2.FilerProvisioned
 	if !localOnly {
-		client := b2.New(in.B2APIBase)
 		var err error
-		prov, err = b2.Provision(ctx, client, in.B2MasterKeyID, in.B2MasterKey, in.FirmName)
+		prov, err = b2.Provision(ctx, b2.New(in.B2APIBase), in.B2MasterKeyID, in.B2MasterKey, in.FirmName)
 		if err != nil {
 			return err
-		}
-		if in.WithFilerBucket {
-			// Same authorized session, same wizard pass (BK-5a).
-			filer, err = b2.ProvisionFilerBucket(ctx, client, in.FirmName, 30)
-			if err != nil {
-				return err
-			}
 		}
 		// in.B2MasterKey* go out of scope here and are never persisted.
 	} else if e.Cfg.LocalRepoDir == "" {
 		return fmt.Errorf("setup: no B2 account and no local repository path — there is nowhere to put a backup")
-	} else if in.WithFilerBucket {
-		return fmt.Errorf("setup: the Filer document bucket requires a B2 account — it cannot be local-only")
 	}
 
 	pass := kit.NewPassphrase()
@@ -80,14 +69,8 @@ func (e *Engine) Setup(ctx context.Context, in SetupInput) error {
 			sec.RestoreKeyID = prov.RestoreKey.KeyID
 			sec.RestoreKey = prov.RestoreKey.Key
 		}
-		if filer != nil {
-			st.FilerBucket = filer.Bucket.Name
-			st.FilerKeyID = filer.Key.KeyID
-			st.FilerProtectedAt = now
-			sec.FilerKey = filer.Key.Key
-		}
 		st.FirmName = in.FirmName
-		st.ApplianceID = in.ApplianceID
+		st.ApplianceID = applianceID(in.ApplianceID)
 		st.NotifyEmail = strings.TrimSpace(in.NotifyEmail)
 		st.Generations = append(st.Generations, gen)
 		st.VerificationCode = code
@@ -95,6 +78,22 @@ func (e *Engine) Setup(ctx context.Context, in SetupInput) error {
 		sec.Passphrases["1"] = pass
 		return nil
 	})
+}
+
+// applianceID resolves the ID printed on the Recovery Kit: the caller's
+// value (appliance mode passes the licensing ID), else the installer env,
+// else a generated one — the standalone UI asks the operator for nothing
+// (design rule 1), but a kit must never print a blank ID.
+func applianceID(fromInput string) string {
+	if v := strings.TrimSpace(fromInput); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(os.Getenv("VIBE_BACKUP_APPLIANCE_ID")); v != "" {
+		return v
+	}
+	b := make([]byte, 4)
+	rand.Read(b)
+	return "vb-" + hex.EncodeToString(b)
 }
 
 // KitData assembles the printable kit for the generation awaiting

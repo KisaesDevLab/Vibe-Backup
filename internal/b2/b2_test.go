@@ -147,41 +147,6 @@ func TestHealthOK(t *testing.T) {
 	}
 }
 
-func TestProvisionFilerBucket(t *testing.T) {
-	srv := fakeB2(t, nil)
-	c := New(srv.URL)
-	if err := c.Authorize(context.Background(), "id", "key"); err != nil {
-		t.Fatal(err)
-	}
-	fp, err := ProvisionFilerBucket(context.Background(), c, "Example CPA", 30)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.HasPrefix(fp.Bucket.Name, "vibe-filer-example-cpa-") {
-		t.Fatalf("filer bucket name: %v", fp.Bucket.Name)
-	}
-	for _, cap := range fp.Key.Capabilities {
-		if strings.HasPrefix(cap, "delete") {
-			t.Fatalf("filer key can delete: %v", fp.Key.Capabilities)
-		}
-	}
-}
-
-func TestProvisionFilerRefusesUnlockedBucket(t *testing.T) {
-	srv := fakeB2(t, func(op string, body map[string]any) (int, any) {
-		if op == "b2_create_bucket" {
-			return 200, map[string]any{"bucketId": "b", "bucketName": body["bucketName"],
-				"fileLockConfiguration": map[string]any{"value": map[string]any{"isFileLockEnabled": false}}}
-		}
-		return 0, nil
-	})
-	c := New(srv.URL)
-	c.Authorize(context.Background(), "id", "key")
-	if _, err := ProvisionFilerBucket(context.Background(), c, "F", 30); err == nil {
-		t.Fatal("must refuse an unlocked filer bucket")
-	}
-}
-
 func TestVerifyCannotDelete(t *testing.T) {
 	srv := fakeB2(t, func(op string, _ map[string]any) (int, any) {
 		if op == "b2_delete_file_version" {

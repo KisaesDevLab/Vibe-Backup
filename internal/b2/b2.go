@@ -180,10 +180,6 @@ var ApplianceCapabilities = []string{"listBuckets", "listFiles", "readFiles", "w
 // RestoreCapabilities: read-only, printed on the Recovery Kit.
 var RestoreCapabilities = []string{"listBuckets", "listFiles", "readFiles"}
 
-// FilerCapabilities: the Filer module writes documents but can never
-// delete them (BK-5a).
-var FilerCapabilities = []string{"listBuckets", "listFiles", "readFiles", "writeFiles"}
-
 // CreateKey mints a bucket-scoped application key.
 func (c *Client) CreateKey(ctx context.Context, name, bucketID string, capabilities []string) (*Key, error) {
 	for _, cap := range capabilities {
@@ -202,37 +198,6 @@ func (c *Client) CreateKey(ctx context.Context, name, bucketID string, capabilit
 		return nil, err
 	}
 	return &k, nil
-}
-
-// ProtectFilerBucket retrofits BK-5a onto an EXISTING bucket (installs
-// that predate backup): Object Lock default retention on document
-// objects plus a lifecycle rule expiring noncurrent versions. New
-// installs use ProvisionFilerBucket instead.
-func (c *Client) ProtectFilerBucket(ctx context.Context, bucketID string, noncurrentDays int) error {
-	return c.call(ctx, "b2_update_bucket", map[string]any{
-		"accountId": c.AccountID(),
-		"bucketId":  bucketID,
-		"defaultRetention": map[string]any{
-			"mode":   "compliance",
-			"period": map[string]any{"duration": RetentionDays, "unit": "days"},
-		},
-		"lifecycleRules": []map[string]any{{
-			"fileNamePrefix":           "",
-			"daysFromHidingToDeleting": noncurrentDays,
-		}},
-	}, nil)
-}
-
-// SetLifecycle sets only the noncurrent-version expiry rule.
-func (c *Client) SetLifecycle(ctx context.Context, bucketID string, noncurrentDays int) error {
-	return c.call(ctx, "b2_update_bucket", map[string]any{
-		"accountId": c.AccountID(),
-		"bucketId":  bucketID,
-		"lifecycleRules": []map[string]any{{
-			"fileNamePrefix":           "",
-			"daysFromHidingToDeleting": noncurrentDays,
-		}},
-	}, nil)
 }
 
 func (c *Client) ListBuckets(ctx context.Context) ([]Bucket, error) {

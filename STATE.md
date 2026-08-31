@@ -1,5 +1,24 @@
 # State
 
+## 2026-08-30 (later) — Filer stripped; setup-field audit
+
+User confirmed Vibe Filer doesn't exist (plan-only module: no repo, no
+appliance registry entry). All Filer code removed: ProvisionFilerBucket,
+FilerCapabilities, ProtectFilerBucket/SetLifecycle, state/secret fields,
+wizard checkbox, API field, status row, tests. Reinstate from v0.3.0
+history if a document-bucket module ever ships. The plan's BK-2b twelve-
+module roster also overstates reality — reconcile against the real org
+inventory when the fan-out starts.
+
+Setup-field audit (user suspected a missing entry): B2 needs only the
+master key pair — account id/endpoint derive from authorize, bucket
+name is generated, restic env (B2_ACCOUNT_ID/KEY) comes from stored
+provisioning output. The genuinely missing piece was applianceId:
+accepted by the API, printed on the kit, but never collected by the UI —
+standalone kits would have printed blank. Fixed zero-decisions style:
+input → VIBE_BACKUP_APPLIANCE_ID env (installer/licensing id) →
+generated "vb-xxxxxxxx"; shown in the status card; manifest env updated.
+
 ## 2026-08-30 — BK-10a prep: manifest schema-compliance + prefix-agnostic UI
 
 Two defects found while starting the appliance-side integration:

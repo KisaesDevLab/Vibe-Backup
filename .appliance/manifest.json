@@ -29,6 +29,7 @@
       { "name": "VIBE_BACKUP_LOCAL_REPO", "doc": "Local restic repository path (USB/NAS mount). Empty = B2 only, warned about in the console." },
       { "name": "VIBE_BACKUP_EXTRA_PATHS", "doc": "Colon-separated host paths mounted into the sidecar to capture: compose file, caddy_data, env files (build plan §3 items 2/3/4/6)." },
       { "name": "VIBE_BACKUP_APPLIANCE_MANIFEST", "doc": "Installed-modules list for the appliance-mode discovery cross-check; unset in standalone mode." },
+      { "name": "VIBE_BACKUP_APPLIANCE_ID", "doc": "Appliance identity printed on the Recovery Kit; the installer sets it to the licensing ID. Unset = the sidecar generates one at setup." },
       { "name": "VIBE_BACKUP_TZ", "doc": "Firm timezone for the 01:30 nightly backup window. Defaults to container-local time." },
       { "name": "VIBE_BACKUP_PING_URL", "doc": "Dead-man's-switch URL, GET after every successful backup (BK-11). Installer sets this to the hosted endpoint per docs/deadman-endpoint.md; any healthchecks-style URL works." },
       { "name": "VIBE_BACKUP_SMTP_HOST", "doc": "SMTP relay for failure-alert emails. Unset = email alerts off (console-only)." },

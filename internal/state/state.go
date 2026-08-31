@@ -78,12 +78,8 @@ type State struct {
 	LastBackups      []RunRecord   `json:"lastBackups,omitempty"`
 	LastDrills       []DrillRecord `json:"lastDrills,omitempty"`
 	// B2KeyID is the application key id (the secret half lives in secrets.json).
-	B2KeyID     string `json:"b2KeyId,omitempty"`
-	B2AccountID string `json:"b2AccountId,omitempty"`
-	// FilerBucket tracks BK-5a protection status.
-	FilerBucket         string    `json:"filerBucket,omitempty"`
-	FilerKeyID          string    `json:"filerKeyId,omitempty"`
-	FilerProtectedAt    time.Time `json:"filerProtectedAt,omitzero"`
+	B2KeyID             string    `json:"b2KeyId,omitempty"`
+	B2AccountID         string    `json:"b2AccountId,omitempty"`
 	LastB2HealthOK      time.Time `json:"lastB2HealthOk,omitzero"`
 	LastB2HealthProblem string    `json:"lastB2HealthProblem,omitempty"`
 	// DrillCounter counts drills ever run — drives the rotating B2
@@ -104,9 +100,6 @@ type Secrets struct {
 	// RestoreKey is the read-only key printed on the kit.
 	RestoreKeyID string `json:"restoreKeyId,omitempty"`
 	RestoreKey   string `json:"restoreKey,omitempty"`
-	// FilerKey is the no-delete key minted for the Filer module (BK-5a);
-	// the installer injects it into Filer's environment.
-	FilerKey string `json:"filerKey,omitempty"`
 }
 
 // Store serializes access and persists atomically (tmp+rename).

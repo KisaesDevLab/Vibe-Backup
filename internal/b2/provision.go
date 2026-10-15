@@ -78,6 +78,52 @@ func Provision(ctx context.Context, c *Client, masterKeyID, masterKey, firmName 
 	}, nil
 }
 
+// UseExisting adopts a bucket the firm already created, using an application
+// key they minted themselves — no master key, nothing is created. The same
+// invariants as Provision hold: the key must be unable to delete and the
+// bucket must have Object Lock on. The one key serves both the appliance and
+// the Recovery Kit (it cannot delete, so a leaked kit cannot destroy history).
+func UseExisting(ctx context.Context, c *Client, keyID, key, bucketName string) (*Provisioned, error) {
+	bucketName = strings.TrimSpace(bucketName)
+	if bucketName == "" {
+		return nil, fmt.Errorf("b2: the bucket name is required")
+	}
+	if err := c.Authorize(ctx, keyID, key); err != nil {
+		return nil, fmt.Errorf("b2: that application key was not accepted: %w", err)
+	}
+	caps := c.AllowedCapabilities()
+	have := map[string]bool{}
+	for _, cp := range caps {
+		if strings.HasPrefix(cp, "delete") {
+			return nil, fmt.Errorf("b2: this key is allowed %s — the appliance must provably be unable to delete; create a key without delete permissions", cp)
+		}
+		have[cp] = true
+	}
+	for _, need := range []string{"listFiles", "readFiles", "writeFiles"} {
+		if !have[need] {
+			return nil, fmt.Errorf("b2: this key lacks %s — it needs list, read, and write on the bucket", need)
+		}
+	}
+	bkts, err := c.ListBucketsNamed(ctx, bucketName)
+	if err != nil {
+		return nil, fmt.Errorf("b2: look up bucket %q: %w", bucketName, err)
+	}
+	var bkt *Bucket
+	for i := range bkts {
+		if bkts[i].Name == bucketName {
+			bkt = &bkts[i]
+		}
+	}
+	if bkt == nil {
+		return nil, fmt.Errorf("b2: bucket %q was not found with this key — check the name and that the key can see it", bucketName)
+	}
+	if !bkt.FileLockConfiguration.Value.IsFileLockEnabled {
+		return nil, fmt.Errorf("b2: bucket %s has Object Lock DISABLED — refusing to use it without immutability (Object Lock can only be enabled when a bucket is created)", bkt.Name)
+	}
+	k := Key{KeyID: keyID, Key: key, Name: "firm-supplied", Capabilities: caps}
+	return &Provisioned{AccountID: c.AccountID(), Bucket: *bkt, ApplianceKey: k, RestoreKey: k}, nil
+}
+
 // assertNoDelete verifies the capability grant the API actually returned —
 // not what we asked for. First line of the BK-7 red-team.
 func assertNoDelete(k *Key) error {

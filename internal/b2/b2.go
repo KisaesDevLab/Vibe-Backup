@@ -40,6 +40,11 @@ type authResponse struct {
 	AccountID          string `json:"accountId"`
 	AuthorizationToken string `json:"authorizationToken"`
 	APIURL             string `json:"apiUrl"`
+	Allowed            struct {
+		Capabilities []string `json:"capabilities"`
+		BucketID     string   `json:"bucketId"`
+		BucketName   string   `json:"bucketName"`
+	} `json:"allowed"`
 }
 
 type apiErr struct {
@@ -81,6 +86,15 @@ func (c *Client) Authorize(ctx context.Context, keyID, key string) error {
 	}
 	c.auth = &auth
 	return nil
+}
+
+// AllowedCapabilities is what the authorized key can actually do, as the
+// API reported it at Authorize time.
+func (c *Client) AllowedCapabilities() []string {
+	if c.auth == nil {
+		return nil
+	}
+	return c.auth.Allowed.Capabilities
 }
 
 func (c *Client) AccountID() string {
@@ -201,10 +215,19 @@ func (c *Client) CreateKey(ctx context.Context, name, bucketID string, capabilit
 }
 
 func (c *Client) ListBuckets(ctx context.Context) ([]Bucket, error) {
+	return c.ListBucketsNamed(ctx, "")
+}
+
+// ListBucketsNamed filters to one bucket name (empty = all visible buckets).
+func (c *Client) ListBucketsNamed(ctx context.Context, name string) ([]Bucket, error) {
 	var out struct {
 		Buckets []Bucket `json:"buckets"`
 	}
-	if err := c.call(ctx, "b2_list_buckets", map[string]any{"accountId": c.AccountID()}, &out); err != nil {
+	req := map[string]any{"accountId": c.AccountID()}
+	if name != "" {
+		req["bucketName"] = name
+	}
+	if err := c.call(ctx, "b2_list_buckets", req, &out); err != nil {
 		return nil, err
 	}
 	return out.Buckets, nil

@@ -168,3 +168,57 @@ func TestVerifyCannotDelete(t *testing.T) {
 		t.Fatalf("a successful delete must be a hard failure, got %v", err)
 	}
 }
+
+func fakeAuthorized(t *testing.T, caps []string, lock bool) *httptest.Server {
+	t.Helper()
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		op := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+		switch op {
+		case "b2_authorize_account":
+			json.NewEncoder(w).Encode(map[string]any{
+				"accountId": "acct1", "authorizationToken": "tok", "apiUrl": srv.URL,
+				"allowed": map[string]any{"capabilities": caps, "bucketId": "bkt1", "bucketName": "firm-bkt"},
+			})
+		case "b2_list_buckets":
+			json.NewEncoder(w).Encode(map[string]any{"buckets": []any{map[string]any{
+				"bucketId": "bkt1", "bucketName": "firm-bkt",
+				"fileLockConfiguration": map[string]any{"value": map[string]any{"isFileLockEnabled": lock}},
+			}}})
+		default:
+			w.WriteHeader(400)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestUseExistingHappyPath(t *testing.T) {
+	srv := fakeAuthorized(t, []string{"listBuckets", "listFiles", "readFiles", "writeFiles"}, true)
+	p, err := UseExisting(context.Background(), New(srv.URL), "kid", "ksecret", "firm-bkt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Bucket.Name != "firm-bkt" || p.ApplianceKey.KeyID != "kid" || p.RestoreKey.Key != "ksecret" {
+		t.Fatalf("unexpected: %+v", p)
+	}
+}
+
+func TestUseExistingRefusals(t *testing.T) {
+	ok := []string{"listBuckets", "listFiles", "readFiles", "writeFiles"}
+	cases := map[string]struct {
+		caps []string
+		lock bool
+		want string
+	}{
+		"delete":   {append([]string{"deleteFiles"}, ok...), true, "deleteFiles"},
+		"nowrite":  {[]string{"listFiles", "readFiles"}, true, "writeFiles"},
+		"unlocked": {ok, false, "Object Lock DISABLED"},
+	}
+	for name, c := range cases {
+		srv := fakeAuthorized(t, c.caps, c.lock)
+		if _, err := UseExisting(context.Background(), New(srv.URL), "kid", "k", "firm-bkt"); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Fatalf("%s: want %q, got %v", name, c.want, err)
+		}
+	}
+}

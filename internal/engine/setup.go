@@ -23,6 +23,12 @@ type SetupInput struct {
 	// local-only mode (plan §10.3): allowed, persistently warned about.
 	B2MasterKeyID string
 	B2MasterKey   string
+	// B2Bucket + B2KeyID/B2Key adopt the firm's existing bucket with their
+	// own application key — no master key, nothing created. Takes precedence
+	// over the master-key flow.
+	B2Bucket string
+	B2KeyID  string
+	B2Key    string
 	// NotifyEmail receives failure alerts. Optional but nagged about.
 	NotifyEmail string
 	// B2APIBase overrides the endpoint in tests.
@@ -41,9 +47,16 @@ func (e *Engine) Setup(ctx context.Context, in SetupInput) error {
 		return fmt.Errorf("setup: already configured and active; use generation rotation to re-key")
 	}
 
-	localOnly := in.B2MasterKeyID == "" && in.B2MasterKey == ""
+	existing := strings.TrimSpace(in.B2Bucket) != ""
+	localOnly := !existing && in.B2MasterKeyID == "" && in.B2MasterKey == ""
 	var prov *b2.Provisioned
-	if !localOnly {
+	if existing {
+		var err error
+		prov, err = b2.UseExisting(ctx, b2.New(in.B2APIBase), strings.TrimSpace(in.B2KeyID), strings.TrimSpace(in.B2Key), in.B2Bucket)
+		if err != nil {
+			return err
+		}
+	} else if !localOnly {
 		var err error
 		prov, err = b2.Provision(ctx, b2.New(in.B2APIBase), in.B2MasterKeyID, in.B2MasterKey, in.FirmName)
 		if err != nil {

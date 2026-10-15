@@ -91,7 +91,7 @@ function renderStatus(d) {
   const card = $("statusCard");
   card.className = "card" + (h.level==="alert" ? " alert" : "");
   if (h.level === "setup") { card.hidden = true; renderSetup(d); return; }
-  $("setupCard").hidden = true;
+  $("setupCard").hidden = true; setupShown = null;
   let rows = `
     <dt>Last verified restore</dt><dd class="hero">${esc(h.lastVerifiedRestore)}</dd>
     <dt>Last backup</dt><dd>${esc(h.lastBackup||"—")}</dd>
@@ -131,18 +131,25 @@ function renderHistory(d) {
   return `<table><tr><th>When</th><th>What</th><th>Result</th><th></th></tr>${dr}${b}</table>`;
 }
 
+// The 30s poll must not rebuild a form the operator is typing into — that
+// wiped every field. Re-render only when the wizard step changes.
+let setupShown = null;
 function renderSetup(d) {
   const c = $("setupCard"); c.hidden = false;
-  if (d.gate === "kit-issued") { c.innerHTML = confirmHTML(); return; }
+  const step = d.gate === "kit-issued" ? "kit" : "form";
+  if (setupShown === step) return;
+  setupShown = step;
+  if (step === "kit") { c.innerHTML = confirmHTML(); return; }
   c.innerHTML = `
     <h1>Set up backups</h1>
-    <p>Three fields. Everything else — bucket, immutability, retention, schedule — is configured for you.</p>
+    <p>Uses the Backblaze B2 bucket you already created. Nothing is created in your account, and no master key is needed.</p>
     <label>Firm name (appears on the Recovery Kit)</label><input id="sFirm">
     <label>Email for failure alerts <span class="mut">(who should know when a backup fails)</span></label><input id="sEmail" type="email" placeholder="office@yourfirm.com">
-    <label>Backblaze master application key ID <span class="mut">(from your firm's Backblaze account — used once to set up, never stored)</span></label><input id="sKeyId" class="mono">
-    <label>Backblaze master application key</label><input id="sKey" type="password" class="mono">
-    <p class="mut">Don't have a Backblaze account yet? Create one at backblaze.com (choose B2 Cloud Storage), add a payment card, and generate the master application key under App Keys. Leave both key fields empty for local-only backup — not recommended.</p>
-    <div class="row"><button class="primary" id="setupBtn" onclick="doSetup()">Create backup system</button></div>`;
+    <label>Backblaze bucket name <span class="mut">(an existing bucket with Object Lock enabled)</span></label><input id="sBucket" class="mono" autocomplete="off">
+    <label>Application key ID <span class="mut">(a key you created for that bucket)</span></label><input id="sKeyId" class="mono" autocomplete="off">
+    <label>Application key</label><input id="sKey" type="password" class="mono" autocomplete="off">
+    <p class="mut">The key needs list, read, and write access to the bucket and must <strong>not</strong> have delete permission — setup refuses a key that can delete. Leave all three Backblaze fields empty for local-only backup — not recommended.</p>
+    <div class="row"><button class="primary" id="setupBtn" onclick="doSetup()">Connect backup storage</button></div>`;
 }
 
 function confirmHTML() {
@@ -161,8 +168,8 @@ function showConfirm(){ $("confirmBox").innerHTML = confirmHTML(); }
 async function doSetup() {
   const b = $("setupBtn"); b.disabled = true;
   try {
-    await api("/api/setup", {method:"POST", body: JSON.stringify({firmName:$("sFirm").value, b2KeyId:$("sKeyId").value, b2Key:$("sKey").value, notifyEmail:$("sEmail")?.value||""})});
-    msg("Storage provisioned. Now print the Recovery Kit."); refresh();
+    await api("/api/setup", {method:"POST", body: JSON.stringify({firmName:$("sFirm").value, b2Bucket:$("sBucket").value, b2KeyId:$("sKeyId").value, b2Key:$("sKey").value, notifyEmail:$("sEmail")?.value||""})});
+    msg("Storage connected. Now print the Recovery Kit."); refresh();
   } catch(e){ msg("Setup failed: "+e.message, 10000); } finally { b.disabled = false; }
 }
 
@@ -228,7 +235,13 @@ async function restoreModule() {
 }
 
 refresh();
-setInterval(refresh, 30000);
+// Never re-render under someone who is typing: the status card rebuilds its
+// own inputs (alert email, kit confirmation) and would eat their entry.
+setInterval(() => {
+  const a = document.activeElement;
+  if (a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA")) return;
+  refresh();
+}, 30000);
 </script>
 </body>
 </html>

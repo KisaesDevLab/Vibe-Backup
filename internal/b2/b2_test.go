@@ -195,7 +195,7 @@ func fakeAuthorized(t *testing.T, caps []string, lock bool) *httptest.Server {
 
 func TestUseExistingHappyPath(t *testing.T) {
 	srv := fakeAuthorized(t, []string{"listBuckets", "listFiles", "readFiles", "writeFiles"}, true)
-	p, err := UseExisting(context.Background(), New(srv.URL), "kid", "ksecret", "firm-bkt")
+	p, err := UseExisting(context.Background(), New(srv.URL), "kid", "ksecret", "firm-bkt", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,8 +217,19 @@ func TestUseExistingRefusals(t *testing.T) {
 	}
 	for name, c := range cases {
 		srv := fakeAuthorized(t, c.caps, c.lock)
-		if _, err := UseExisting(context.Background(), New(srv.URL), "kid", "k", "firm-bkt"); err == nil || !strings.Contains(err.Error(), c.want) {
+		if _, err := UseExisting(context.Background(), New(srv.URL), "kid", "k", "firm-bkt", false); err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Fatalf("%s: want %q, got %v", name, c.want, err)
 		}
+	}
+}
+
+func TestUseExistingDeleteOverride(t *testing.T) {
+	srv := fakeAuthorized(t, []string{"deleteFiles", "listBuckets", "listFiles", "readFiles", "writeFiles"}, true)
+	p, err := UseExisting(context.Background(), New(srv.URL), "kid", "k", "firm-bkt", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.DeleteCapable {
+		t.Fatal("override must be recorded so the status card can warn")
 	}
 }

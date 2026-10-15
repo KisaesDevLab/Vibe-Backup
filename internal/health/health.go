@@ -101,6 +101,12 @@ func Evaluate(st state.State, localRepo bool, now time.Time) Status {
 	// Destinations.
 	if gen != nil && gen.B2Bucket != "" {
 		s.OffsiteCopy = fmt.Sprintf("B2 (%s), locked, %d-day retention", gen.B2Bucket, 90)
+		if st.B2KeyCanDelete {
+			s.Warnings = append(s.Warnings, "The Backblaze key on this appliance is allowed to delete files. Object Lock still protects data for 90 days, but anyone who controls this appliance could delete older backups. Replace it with a no-delete key.")
+			if s.Level == OK {
+				s.Level = Warn
+			}
+		}
 	} else {
 		s.OffsiteCopy = "none — local only"
 		s.Warnings = append(s.Warnings, "No off-site copy. Fire, theft, or ransomware that reaches the local drive leaves nothing to restore.")

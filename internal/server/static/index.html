@@ -148,7 +148,9 @@ function renderSetup(d) {
     <label>Backblaze bucket name <span class="mut">(an existing bucket with Object Lock enabled)</span></label><input id="sBucket" class="mono" autocomplete="off">
     <label>Application key ID <span class="mut">(a key you created for that bucket)</span></label><input id="sKeyId" class="mono" autocomplete="off">
     <label>Application key</label><input id="sKey" type="password" class="mono" autocomplete="off">
-    <p class="mut">The key needs list, read, and write access to the bucket and must <strong>not</strong> have delete permission — setup refuses a key that can delete. Leave all three Backblaze fields empty for local-only backup — not recommended.</p>
+    <p class="mut">The key needs list, read, and write access to the bucket. Ideally it has <strong>no</strong> delete permission (only creatable with the Backblaze CLI/API).</p>
+    <label style="display:flex;gap:.5rem;align-items:flex-start;color:var(--ink)"><input type="checkbox" id="sAllowDel" style="width:auto;margin-top:.3rem"><span>My key can delete (created in the Backblaze web page). Allow it anyway. <span class="mut">Object Lock still protects data for 90 days, but the status card will carry a permanent warning.</span></span></label>
+    <p class="mut">Leave all three Backblaze fields empty for local-only backup — not recommended.</p>
     <div class="row"><button class="primary" id="setupBtn" onclick="doSetup()">Connect backup storage</button></div>`;
 }
 
@@ -168,7 +170,7 @@ function showConfirm(){ $("confirmBox").innerHTML = confirmHTML(); }
 async function doSetup() {
   const b = $("setupBtn"); b.disabled = true;
   try {
-    await api("/api/setup", {method:"POST", body: JSON.stringify({firmName:$("sFirm").value, b2Bucket:$("sBucket").value, b2KeyId:$("sKeyId").value, b2Key:$("sKey").value, notifyEmail:$("sEmail")?.value||""})});
+    await api("/api/setup", {method:"POST", body: JSON.stringify({firmName:$("sFirm").value, b2Bucket:$("sBucket").value, b2KeyId:$("sKeyId").value, b2Key:$("sKey").value, b2AllowDelete:$("sAllowDel").checked, notifyEmail:$("sEmail")?.value||""})});
     msg("Storage connected. Now print the Recovery Kit."); refresh();
   } catch(e){ msg("Setup failed: "+e.message, 10000); } finally { b.disabled = false; }
 }

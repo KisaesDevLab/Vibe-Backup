@@ -29,6 +29,8 @@ type SetupInput struct {
 	B2Bucket string
 	B2KeyID  string
 	B2Key    string
+	// B2AllowDelete accepts a key that can delete (web-UI keys always can).
+	B2AllowDelete bool
 	// NotifyEmail receives failure alerts. Optional but nagged about.
 	NotifyEmail string
 	// B2APIBase overrides the endpoint in tests.
@@ -52,7 +54,7 @@ func (e *Engine) Setup(ctx context.Context, in SetupInput) error {
 	var prov *b2.Provisioned
 	if existing {
 		var err error
-		prov, err = b2.UseExisting(ctx, b2.New(in.B2APIBase), strings.TrimSpace(in.B2KeyID), strings.TrimSpace(in.B2Key), in.B2Bucket)
+		prov, err = b2.UseExisting(ctx, b2.New(in.B2APIBase), strings.TrimSpace(in.B2KeyID), strings.TrimSpace(in.B2Key), in.B2Bucket, in.B2AllowDelete)
 		if err != nil {
 			return err
 		}
@@ -78,6 +80,7 @@ func (e *Engine) Setup(ctx context.Context, in SetupInput) error {
 			gen.B2Prefix = "gen1"
 			st.B2AccountID = prov.AccountID
 			st.B2KeyID = prov.ApplianceKey.KeyID
+			st.B2KeyCanDelete = prov.DeleteCapable
 			sec.B2AppKey = prov.ApplianceKey.Key
 			sec.RestoreKeyID = prov.RestoreKey.KeyID
 			sec.RestoreKey = prov.RestoreKey.Key

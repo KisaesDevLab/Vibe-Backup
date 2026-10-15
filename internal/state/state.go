@@ -79,6 +79,9 @@ type State struct {
 	LastDrills       []DrillRecord `json:"lastDrills,omitempty"`
 	// B2KeyID is the application key id (the secret half lives in secrets.json).
 	B2KeyID             string    `json:"b2KeyId,omitempty"`
+	// B2KeyCanDelete is set when the operator overrode the no-delete rule and
+	// supplied a key that can delete. Surfaced as a permanent warning.
+	B2KeyCanDelete bool `json:"b2KeyCanDelete,omitempty"`
 	B2AccountID         string    `json:"b2AccountId,omitempty"`
 	LastB2HealthOK      time.Time `json:"lastB2HealthOk,omitzero"`
 	LastB2HealthProblem string    `json:"lastB2HealthProblem,omitempty"`

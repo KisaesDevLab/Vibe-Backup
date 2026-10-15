@@ -16,6 +16,8 @@ type Provisioned struct {
 	Bucket       Bucket
 	ApplianceKey Key // list/read/write, no delete — daily backups
 	RestoreKey   Key // read-only — printed on the Recovery Kit
+	// DeleteCapable: the operator overrode the no-delete rule (UseExisting only).
+	DeleteCapable bool
 }
 
 var slugRe = regexp.MustCompile(`[^a-z0-9-]+`)
@@ -83,7 +85,11 @@ func Provision(ctx context.Context, c *Client, masterKeyID, masterKey, firmName 
 // invariants as Provision hold: the key must be unable to delete and the
 // bucket must have Object Lock on. The one key serves both the appliance and
 // the Recovery Kit (it cannot delete, so a leaked kit cannot destroy history).
-func UseExisting(ctx context.Context, c *Client, keyID, key, bucketName string) (*Provisioned, error) {
+//
+// allowDelete is the operator's explicit override for keys minted in the
+// Backblaze web UI, which cannot omit deleteFiles. Provisioned.DeleteCapable
+// records it so the status card can warn permanently.
+func UseExisting(ctx context.Context, c *Client, keyID, key, bucketName string, allowDelete bool) (*Provisioned, error) {
 	bucketName = strings.TrimSpace(bucketName)
 	if bucketName == "" {
 		return nil, fmt.Errorf("b2: the bucket name is required")
@@ -93,9 +99,13 @@ func UseExisting(ctx context.Context, c *Client, keyID, key, bucketName string) 
 	}
 	caps := c.AllowedCapabilities()
 	have := map[string]bool{}
+	canDelete := false
 	for _, cp := range caps {
 		if strings.HasPrefix(cp, "delete") {
-			return nil, fmt.Errorf("b2: this key is allowed %s — the appliance must provably be unable to delete; create a key without delete permissions", cp)
+			if !allowDelete {
+				return nil, fmt.Errorf("b2: this key is allowed %s — the appliance must provably be unable to delete; create a key without delete permissions, or tick the override", cp)
+			}
+			canDelete = true
 		}
 		have[cp] = true
 	}
@@ -121,7 +131,7 @@ func UseExisting(ctx context.Context, c *Client, keyID, key, bucketName string) 
 		return nil, fmt.Errorf("b2: bucket %s has Object Lock DISABLED — refusing to use it without immutability (Object Lock can only be enabled when a bucket is created)", bkt.Name)
 	}
 	k := Key{KeyID: keyID, Key: key, Name: "firm-supplied", Capabilities: caps}
-	return &Provisioned{AccountID: c.AccountID(), Bucket: *bkt, ApplianceKey: k, RestoreKey: k}, nil
+	return &Provisioned{AccountID: c.AccountID(), Bucket: *bkt, ApplianceKey: k, RestoreKey: k, DeleteCapable: canDelete}, nil
 }
 
 // assertNoDelete verifies the capability grant the API actually returned —

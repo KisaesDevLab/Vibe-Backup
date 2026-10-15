@@ -102,6 +102,7 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		B2KeyID     string `json:"b2KeyId"`
 		B2Key       string `json:"b2Key"`
 		B2Bucket    string `json:"b2Bucket"`
+		AllowDelete bool   `json:"b2AllowDelete"`
 		NotifyEmail string `json:"notifyEmail"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
@@ -116,6 +117,7 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		B2Bucket:      in.B2Bucket,
 		B2KeyID:       in.B2KeyID,
 		B2Key:         in.B2Key,
+		B2AllowDelete: in.AllowDelete,
 		NotifyEmail:   in.NotifyEmail,
 		B2APIBase:     s.Engine.Cfg.B2API,
 	})
